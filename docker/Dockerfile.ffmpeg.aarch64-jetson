@@ -3,7 +3,8 @@
 # https://github.com/mmastrac/ffmpeg-omx-rpi-docker/blob/master/Dockerfile
 # https://github.com/jrottenberg/ffmpeg/pull/158/files
 # https://github.com/jrottenberg/ffmpeg/pull/239
-FROM        balenalib/jetson-nano-ubuntu:latest AS base
+# https://github.com/Keylost/jetson-ffmpeg
+FROM        balenalib/jetson-orin-nx-xavier-nx-devkit-ubuntu:latest AS base
 
 WORKDIR     /tmp/workdir
 
@@ -21,14 +22,17 @@ RUN     \
 
 #ENV UDEV=1
 
-FROM base as build
+FROM base AS build
 
-ENV         FFMPEG_VERSION=4.3.1 \
+# Valid FFMPEG_VERSIONs are 4.2, 4.4, 6.0
+
+ENV         FFMPEG_VERSION=4.4 \
             AOM_VERSION=v1.0.0 \
             FDKAAC_VERSION=0.1.5 \
             FREETYPE_VERSION=2.5.5 \
             FRIBIDI_VERSION=0.19.7 \
-            KVAZAAR_VERSION=1.2.0 \
+#            KVAZAAR_VERSION=1.2.0 \
+            KVAZAAR_VERSION=2.0.0 \
             LAME_VERSION=3.100 \
             LIBPTHREAD_STUBS_VERSION=0.4 \
             LIBVIDSTAB_VERSION=1.1.0 \
@@ -51,7 +55,7 @@ ENV         FFMPEG_VERSION=4.3.1 \
             LIBZMQ_VERSION=4.3.2 \
             SRC=/usr/local
 
-ARG         FREETYPE_SHA256SUM="5d03dd76c2171a7601e9ce10551d52d4471cf92cd205948e60289251daddffa8 freetype-2.5.5.tar.gz"
+ARG         FREETYPE_SHA256SUM="5d03dd76c2171a7601e9ce10551d52d4471cf92cd205948e60289251daddffa8  freetype-2.5.5.tar.gz"
 ARG         FRIBIDI_SHA256SUM="3fc96fa9473bd31dcb5500bdf1aa78b337ba13eb8c301e7c28923fea982453a8 0.19.7.tar.gz"
 ARG         LIBVIDSTAB_SHA256SUM="14d2a053e56edad4f397be0cb3ef8eb1ec3150404ce99a426c4eb641861dc0bb v1.1.0.tar.gz"
 ARG         OGG_SHA256SUM="e19ee34711d7af328cb26287f4137e70630e7261b17cbe3cd41011d73a654692 libogg-1.3.2.tar.gz"
@@ -97,7 +101,7 @@ RUN \
        DIR=/tmp/jetson-ffmpeg && \
        mkdir -p ${DIR} && \
        cd ${DIR} && \
-       git clone https://github.com/jocover/jetson-ffmpeg.git && \
+       git clone https://github.com/Keylost/jetson-ffmpeg.git && \
        cd jetson-ffmpeg && \
        mkdir build && \
        cd build && \
@@ -187,6 +191,7 @@ RUN \
         curl -sLO http://downloads.xiph.org/releases/theora/libtheora-${THEORA_VERSION}.tar.gz && \
         echo ${THEORA_SHA256SUM} | sha256sum --check && \
         tar -zx --strip-components=1 -f libtheora-${THEORA_VERSION}.tar.gz && \
+	sed -i 's/png_sizeof/sizeof/g' examples/png2theora.c && \
         curl -sL 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD' -o config.guess && \
         curl -sL 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD' -o config.sub && \
         ./configure --prefix="${PREFIX}" --with-ogg="${PREFIX}" --enable-shared && \
@@ -269,7 +274,7 @@ RUN  \
         DIR=/tmp/freetype && \
         mkdir -p ${DIR} && \
         cd ${DIR} && \
-        curl -sLO https://download.savannah.gnu.org/releases/freetype/freetype-${FREETYPE_VERSION}.tar.gz && \
+        curl -sLO https://download.savannah.gnu.org/releases/freetype/freetype-old/freetype-${FREETYPE_VERSION}.tar.gz && \
         echo ${FREETYPE_SHA256SUM} | sha256sum --check && \
         tar -zx --strip-components=1 -f freetype-${FREETYPE_VERSION}.tar.gz && \
         ./configure --prefix="${PREFIX}" --disable-static --enable-shared && \
@@ -414,17 +419,17 @@ RUN \
         make -j $(nproc) install && \
         rm -rf ${DIR}
 
+FROM build AS build-ffmpeg
+
 ## ffmpeg https://ffmpeg.org/
 RUN  \
-        DIR=/tmp/ffmpeg && mkdir -p ${DIR} && cd ${DIR} && \
-        curl -sLO https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
-        tar -jx --strip-components=1 -f ffmpeg-${FFMPEG_VERSION}.tar.bz2
+        DIR=/tmp && mkdir -p ${DIR} && cd ${DIR} && \
+	git clone git://source.ffmpeg.org/ffmpeg.git -b release/${FFMPEG_VERSION} --depth=1
 
 RUN \
         DIR=/tmp/ffmpeg && mkdir -p ${DIR} && cd ${DIR} && \
-        wget -q https://raw.githubusercontent.com/e1z0/jetson-frigate/main/ffmpeg/nvmpi.patch && \
-        patch -p1 < nvmpi.patch && \
-#        echo "/usr/lib/aarch64-linux-gnu/tegra" > /etc/ld.so.conf.d/aarch64-linux-gnu_GL.conf && ldconfig && \
+	wget -O ffmpeg_nvmpi.patch https://github.com/Keylost/jetson-ffmpeg/raw/master/ffmpeg_patches/ffmpeg${FFMPEG_VERSION}_nvmpi.patch && \
+	git apply ffmpeg_nvmpi.patch && \
         ./configure \
         --enable-nvmpi \
         --disable-debug \
@@ -460,13 +465,10 @@ RUN \
         --enable-libkvazaar \
         --enable-libaom \
         --extra-libs=-lpthread \
-        # --enable-omx \
-        # --enable-omx-rpi \
-        # --enable-mmal \
         --enable-v4l2_m2m \
         --enable-neon \
         --extra-cflags="-I${PREFIX}/include" \
-        --extra-ldflags="-L${PREFIX}/lib"  && \
+        --extra-ldflags="-L${PREFIX}/lib" && \
         make -j $(nproc) && \
         make -j $(nproc) install && \
         make tools/zmqsend && cp tools/zmqsend ${PREFIX}/bin/ && \
@@ -495,6 +497,6 @@ ENV         LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64:/usr/lib:/usr/lib64:
 CMD         ["--help"]
 ENTRYPOINT  ["ffmpeg"]
 
-COPY --from=build /usr/local /usr/local/
+COPY --from=build-ffmpeg /usr/local /usr/local/
 
 # Run ffmpeg with -c:v h264_nvmpi to enable HW accell for decoding on Jetson Nano
