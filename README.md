@@ -40,7 +40,7 @@ cd frigate
 ## Download docker build files and replace them
 
 ```
-git clone https://github.com/e1z0/jetson-frigate.git
+git clone https://github.com/ratsputin/jetson-frigate.git
 rm -rf docker Makefile
 mv jetson-frigate/docker .
 mv jetson-frigate/Makefile .
