@@ -4,7 +4,8 @@
 # https://github.com/jrottenberg/ffmpeg/pull/158/files
 # https://github.com/jrottenberg/ffmpeg/pull/239
 # https://github.com/Keylost/jetson-ffmpeg
-FROM        balenalib/jetson-orin-nx-xavier-nx-devkit-ubuntu:latest AS base
+FROM	balenalib/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS base
+FROM	balenalib/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-run AS run
 
 WORKDIR     /tmp/workdir
 
@@ -490,7 +491,7 @@ RUN \
           sed "s:${PREFIX}:/usr/local:g" <"$pc" >/usr/local/lib/pkgconfig/"${pc##*/}"; \
         done
 
-FROM        base AS release
+FROM        run AS release
 
 ENV         LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64:/usr/lib:/usr/lib64:/lib:/lib64
 

@@ -1,0 +1,31 @@
+cd
+apt update
+apt upgrade
+wget https://repo.anaconda.com/archive/Anaconda3-2023.03-1-Linux-aarch64.sh
+bash Anaconda3-2023.03-1-Linux-aarch64.sh -b -p /usr/local/ -f
+conda info
+conda update conda
+conda list
+conda config --add channels conda-forge
+conda config --set channel_priority strict
+conda update conda
+conda install -q -y pocl pocl-cuda
+conda install -q -y clinfo
+clinfo
+
+usage: $0 [options]
+
+Installs ${INSTALLER_NAME} ${INSTALLER_VER}
+
+-b           run install in batch mode (without manual intervention),
+             it is expected the license terms (if any) are agreed upon
+-f           no error if install prefix already exists
+-h           print this help message and exit
+-p PREFIX    install prefix, defaults to $PREFIX, must not contain spaces.
+-s           skip running pre/post-link/install scripts
+-u           update an existing installation
+-t           run package tests after installation (may install conda-build)
+
+bash Anaconda3-2023.03-1-Linux-aarch64.sh -b -p /usr/local/ -f
+
+https://repo.anaconda.com/miniconda/Miniconda3-py39_23.3.1-0-Linux-aarch64.sh
