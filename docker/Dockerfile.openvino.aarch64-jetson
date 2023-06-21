@@ -12,13 +12,16 @@ RUN apt-get update; \
         apt-utils \
         git \
         git-lfs \
-        python3-pip \
         ca-certificates \
         sudo \
         pocl-opencl-icd \
         clinfo \
         tzdata; \
     rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp
+RUN wget https://bootstrap.pypa.io/get-pip.py; \
+    python3 get-pip.py
 
 ARG OPENVINO_FORK="openvinotoolkit"
 ARG OPENVINO_BRANCH="master"
@@ -89,23 +92,93 @@ RUN ./bootstrap.sh; \
     ./configure --disable-udev --enable-shared; \
     make "-j$(nproc)"
 
+# -------------------------------------------------------------------------------------------------
+FROM build_openvino AS build_openvino_phase2
+
+RUN apt-get update; \
+    DEBIAN_FRONTEND=noninteractive \
+    apt-get install -y --no-install-recommends \
+        unzip \
+        libaec-dev \
+        libblosc-dev \
+        libbrotli-dev \
+        libdeflate-dev \
+        libgif-dev \
+        libopenjp2-7-dev \
+        libjxr-dev \
+        liblz4-dev \
+        libcfitsio-dev \
+        libsnappy-dev \
+        libwebp-dev \
+        libzopfli-dev \
+        libzstd-dev; \
+    rm -rf /var/lib/apt/lists/*
+
+#
+# Install supporting libraries
+#
+WORKDIR /tmp
+RUN git clone --depth=1 https://github.com/google/brunsli.git; \
+    cd brunsli; \
+    git submodule update --init --recursive; \
+    cmake -DCMAKE_BUILD_TYPE=Release -B out; \
+    cmake --build out --config Release; \
+    cmake --install out
+
+RUN git clone --depth=1 https://github.com/team-charls/charls.git; \
+    cd charls; \
+    mkdir release; \
+    cd release; \
+    cmake -DCMAKE_BUILD_TYPE=Release ..; \
+    cmake --build .; \
+    cmake --install .
+
+# need v0.7 due to some deprecated #DEFINES being removed in v0.8
+RUN git clone https://github.com/libjxl/libjxl.git -b "v0.7.x" --recursive --depth=1 --shallow-submodules; \
+    cd libjxl; \
+    mkdir build; \
+    cd build; \
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF ..; \
+    cmake --build . -- -j$(nproc); \
+    cmake --install .
+
+RUN git clone https://github.com/LLNL/zfp.git; \
+    cd zfp; \
+    mkdir build; \
+    cd build; \
+    cmake ..; \
+    cmake --build . --config Release; \
+    cmake --install .; \
+    ln -s /usr/local/include/zfp/bitstream.h /usr/local/include/bitstream.h
+
+#
+# Build the wheels needed for openvino_dev on the aarch64 platform for tne next step
+#
+WORKDIR /opt/intel/repo/openvino/build/install
+RUN pip3 wheel --no-cache-dir --wheel-dir=/tmp 'openvino_dev[caffe,kaldi,onnx,pytorch]==2022.2.0' --find-links=tools/; \
+    cp /tmp/imagecodecs* /tmp/jstyleson* /tmp/parasail* /tmp/progress* tools/
+
 WORKDIR /opt/intel/repo
 CMD ["/bin/bash"]
 # -------------------------------------------------------------------------------------------------
-FROM balenalib/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS copy_openvino
+FROM balenalib/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS openvino_binaries
 
 LABEL description="This is the dev image for Intel(R) Distribution of OpenVINO(TM) toolkit on Ubuntu 20.04 LTS"
 LABEL vendor="Intel Corporation"
 
 ENV INTEL_OPENVINO_DIR="/opt/intel/openvino"
 
-COPY --from=build_openvino /opt/intel/repo/openvino/build/install ${INTEL_OPENVINO_DIR}
-COPY --from=build_openvino /tmp/libusb-1.0.22 /opt/libusb-1.0.22
+COPY --from=build_openvino_phase2 /opt/intel/repo/openvino/build/install ${INTEL_OPENVINO_DIR}
+COPY --from=build_openvino_phase2 /tmp/libusb-1.0.22 /opt/libusb-1.0.22
+
+WORKDIR /tmp
+RUN wget https://bootstrap.pypa.io/get-pip.py; \
+    python3 get-pip.py
 
 WORKDIR ${INTEL_OPENVINO_DIR}
 CMD ["/bin/bash"]
 # -------------------------------------------------------------------------------------------------
-FROM copy_openvino AS openvino
+FROM openvino_binaries AS openvino_python
 
 LABEL description="This is the dev image for Intel(R) Distribution of OpenVINO(TM) toolkit on Ubuntu 20.04 LTS"
 LABEL vendor="Intel Corporation"
@@ -115,7 +188,6 @@ RUN apt-get update; \
     DEBIAN_FRONTEND=noninteractive \
     apt-get install -y --no-install-recommends \
         apt-utils \
-        python3-pip \
         wget \
         udev \
         sudo \
@@ -147,15 +219,19 @@ RUN chmod +x install_dependencies/install_NCS_udev_rules.sh; \
 
 # hadolint ignore=DL3013
 RUN pip3 install --no-cache-dir --upgrade pip; \
+    pip3 install --no-cache-dir protobuf; \
     pip3 install --no-cache-dir -r python/python3.8/requirements.txt; \
-    pip3 install --no-cache-dir openvino-arm --find-links=tools/ ; \
-    pip3 install --no-cache-dir 'openvino_dev[caffe,kaldi,mxnet,onnx,pytorch,tensorflow2]' --find-links=tools/
+    pip3 install --no-cache-dir openvino --find-links=tools/ ; \
+    pip3 install --no-cache-dir 'tensorflow-aarch64==2.8.4' ; \
+    pip3 install --no-cache-dir mxnet ; \
+    pip3 install --no-cache-dir 'openvino_dev[caffe,kaldi,onnx,pytorch]==2022.2.0' --find-links=tools/
+#   pip install --no-cache-dir 'openvino_dev[caffe,kaldi,mxnet,onnx,pytorch,tensorflow2]' --find-links=tools/
 
 RUN printf "\nsource \${INTEL_OPENVINO_DIR}/setupvars.sh\n" >> /root/.bashrc
 
 CMD ["/bin/bash"]
 # -------------------------------------------------------------------------------------------------
-FROM openvino AS opencv
+FROM openvino_python AS opencv
 
 LABEL description="This is the dev image for Intel(R) Distribution of OpenVINO(TM) toolkit on Ubuntu 20.04 LTS"
 LABEL vendor="Intel Corporation"
