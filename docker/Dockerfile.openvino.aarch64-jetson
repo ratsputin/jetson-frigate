@@ -24,7 +24,7 @@ RUN wget https://bootstrap.pypa.io/get-pip.py; \
     python3 get-pip.py
 
 ARG OPENVINO_FORK="openvinotoolkit"
-ARG OPENVINO_BRANCH="master"
+ARG OPENVINO_BRANCH="2022.2.0"
 ARG OMZ_BRANCH
 
 # hadolint ignore=DL3003
@@ -73,7 +73,9 @@ RUN pip3 install --no-cache-dir pytest==7.3.1; \
 RUN apt-get update; \
     DEBIAN_FRONTEND=noninteractive \
     apt-get install -y --no-install-recommends \
-        libaec-dev
+        libaec-dev \
+        libtool \
+        unzip
 
 WORKDIR /opt/intel/repo/openvino/build
 # hadolint ignore=SC2046
@@ -85,10 +87,9 @@ RUN sed -i "s/_platform_tags/platform_tags/g" ../src/bindings/python/wheel/CMake
 WORKDIR /tmp
 RUN curl -L https://github.com/libusb/libusb/archive/v1.0.22.zip --output v1.0.22.zip; \
     unzip v1.0.22.zip; \
-    rm -rf v1.0.22.zip
-
-WORKDIR /tmp/libusb-1.0.22
-RUN ./bootstrap.sh; \
+    rm -f v1.0.22.zip; \
+    cd libusb-1.0.22; \
+    ./bootstrap.sh; \
     ./configure --disable-udev --enable-shared; \
     make "-j$(nproc)"
 
@@ -123,25 +124,34 @@ RUN git clone --depth=1 https://github.com/google/brunsli.git; \
     git submodule update --init --recursive; \
     cmake -DCMAKE_BUILD_TYPE=Release -B out; \
     cmake --build out --config Release; \
-    cmake --install out
+    cmake --install out; \
+    cd /tmp; \
+    rm -Rf brunsli
 
+WORKDIR /tmp
 RUN git clone --depth=1 https://github.com/team-charls/charls.git; \
     cd charls; \
     mkdir release; \
     cd release; \
     cmake -DCMAKE_BUILD_TYPE=Release ..; \
     cmake --build .; \
-    cmake --install .
+    cmake --install .; \
+    cd /tmp; \
+    rm -Rf charls
 
 # need v0.7 due to some deprecated #DEFINES being removed in v0.8
+WORKDIR /tmp
 RUN git clone https://github.com/libjxl/libjxl.git -b "v0.7.x" --recursive --depth=1 --shallow-submodules; \
     cd libjxl; \
     mkdir build; \
     cd build; \
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF ..; \
     cmake --build . -- -j$(nproc); \
-    cmake --install .
+    cmake --install .; \
+    cd /tmp; \
+    rm -Rf libjxl
 
+WORKDIR /tmp
 RUN git clone https://github.com/LLNL/zfp.git; \
     cd zfp; \
     mkdir build; \
@@ -149,7 +159,9 @@ RUN git clone https://github.com/LLNL/zfp.git; \
     cmake ..; \
     cmake --build . --config Release; \
     cmake --install .; \
-    ln -s /usr/local/include/zfp/bitstream.h /usr/local/include/bitstream.h
+    ln -s /usr/local/include/zfp/bitstream.h /usr/local/include/bitstream.h; \
+    cd /tmp; \
+    rm -Rf zfp
 
 #
 # Build the wheels needed for openvino_dev on the aarch64 platform for tne next step
@@ -192,6 +204,7 @@ RUN apt-get update; \
         udev \
         sudo \
         gdb \
+        unzip \
         tzdata; \
     rm -rf /var/lib/apt/lists/*
 
