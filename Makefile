@@ -14,7 +14,7 @@ local: version jetson_ffmpeg jetson_openvino
 	docker buildx build --target=frigate-jetson-tensorrt --tag frigate-jetson-tensorrt:latest --load .
 
 jetson_ffmpeg:
-	docker build --platform linux/arm64/v8 --tag blakeblackshear/frigate-ffmpeg:1.0.0-aarch64 --file ./jetson-frigate/docker/Dockerfile.ffmpeg.aarch64-jetson .
+	docker build --platform linux/arm64/v8 --tag ratsputin/ffmpeg:4.4-aarch64 --file ./jetson-frigate/docker/Dockerfile.ffmpeg.aarch64-jetson .
 
 jetson_openvino:
 	docker build --tag ratsputin/frigate-openvino:$(OPENVINO_BRANCH)-aarch64 --build-arg OPENVINO_BRANCH=$(OPENVINO_BRANCH) --build-arg TENSORFLOW_AARCH64_BRANCH=$(TENSORFLOW_BRANCH) --file ./jetson-frigate/docker/Dockerfile.openvino.aarch64-jetson .
