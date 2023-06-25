@@ -1,0 +1,39 @@
+version: "3"
+services:
+  devcontainer:
+    container_name: frigate-devcontainer-jetson-trt
+    # add groups from host for render, plugdev, video
+    group_add:
+      - "109" # render
+      - "110" # render
+      - "44"  # video
+      - "46"  # plugdev
+    shm_size: "256mb"
+    build:
+      context: .
+      # Use target devcontainer-jetson-trt for TensorRT dev
+      target: devcontainer-jetson-trt
+    deploy:
+          resources:
+              reservations:
+                  devices:
+                      - driver: nvidia
+                        count: 1
+                        capabilities: [gpu]
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+      # - /dev/dri:/dev/dri # for intel hwaccel, needs to be updated for your hardware
+    volumes:
+      - .:/workspace/frigate:cached
+      - ./web/dist:/opt/frigate/web:cached
+      - /etc/localtime:/etc/localtime:ro
+      - ./config:/config
+      - ./debug:/media/frigate
+      # Create the trt-models folder using the documented method of generating TRT models
+      # - ./debug/trt-models:/trt-models
+      - /dev/bus/usb:/dev/bus/usb
+  mqtt:
+    container_name: mqtt
+    image: eclipse-mosquitto:1.6
+    ports:
+      - "1883:1883"

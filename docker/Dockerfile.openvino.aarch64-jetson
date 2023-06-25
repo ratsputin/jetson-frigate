@@ -5,8 +5,16 @@ ARG OPENVINO_FORK="openvinotoolkit"
 ARG OPENVINO_BRANCH=2022.2.0
 ARG TENSORFLOW_AARCH64_BRANCH=2.8.4
 ARG OMZ_BRANCH
+ARG PYTHON_VERSION=3.8
 
 FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS base
+
+ARG PYTHON_VERSION
+
+# Set up proper Python version using Ubuntu update-alternatives.  Default auto is Python 3.8.
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 20 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 10 \
+    && update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION}
 
 LABEL description="This is the dev image for Intel(R) Distribution of OpenVINO(TM) toolkit on Ubuntu 20.04 LTS"
 LABEL vendor="Intel Corporation"
@@ -202,6 +210,7 @@ FROM openvino_binaries AS openvino_python
 
 ARG OPENVINO_BRANCH
 ARG TENSORFLOW_AARCH64_BRANCH
+ARG PYTHON_VERSION
 
 LABEL description="This is the dev image for Intel(R) Distribution of OpenVINO(TM) toolkit on Ubuntu 20.04 LTS"
 LABEL vendor="Intel Corporation"
@@ -249,7 +258,7 @@ RUN if [ -f install_dependencies/install_NCS_udev_rules.sh ]; then \
 # hadolint ignore=DL3013
 RUN pip3 install --no-cache-dir --upgrade pip; \
     pip3 install --no-cache-dir protobuf; \
-    pip3 install --no-cache-dir -r python/python3.8/requirements.txt; \
+    pip3 install --no-cache-dir -r python/python${PYTHON_VERSION}/requirements.txt; \
     pip3 install --no-cache-dir openvino --find-links=tools/ ; \
     pip3 install --no-cache-dir "tensorflow-aarch64==$TENSORFLOW_AARCH64_BRANCH" ; \
     pip3 install --no-cache-dir mxnet ; \

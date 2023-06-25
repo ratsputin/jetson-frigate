@@ -2,8 +2,16 @@
 
 # https://askubuntu.com/questions/972516/debian-frontend-environment-variable
 ARG DEBIAN_FRONTEND=noninteractive
+ARG PYTHON_VERSION=3.8
 
 FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS base
+
+ARG PYTHON_VERSION
+
+# Set up proper Python version using Ubuntu update-alternatives.  Default auto is Python 3.8.
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 20 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 10 \
+    && update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION}
 
 FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-run AS slim-base
 
@@ -25,7 +33,7 @@ RUN --mount=type=tmpfs,target=/tmp --mount=type=tmpfs,target=/var/cache/apt \
 FROM wget AS go2rtc
 ARG TARGETARCH
 WORKDIR /rootfs/usr/local/go2rtc/bin
-RUN wget -qO go2rtc "https://github.com/AlexxIT/go2rtc/releases/download/v1.5.0/go2rtc_linux_${TARGETARCH}" \
+RUN wget -qO go2rtc "https://github.com/AlexxIT/go2rtc/releases/download/v1.5.0/go2rtc_linux_$TARGETARCH" \
     && chmod +x go2rtc
 
 
@@ -47,7 +55,8 @@ RUN cd /tmp \
     && wget https://bootstrap.pypa.io/get-pip.py \
     && python3 get-pip.py \
     && pip3 install openvino-dev==2023.0.0 --find-links=./ \
-    && pip3 install tensorflow-aarch64
+    && pip3 install tensorflow-aarch64 \
+    && pip3 install fastjsonschema
 
 # Get OpenVino Model
 RUN mkdir /models \
@@ -96,6 +105,7 @@ RUN wget -q https://github.com/openvinotoolkit/open_model_zoo/raw/master/data/da
 
 FROM wget AS s6-overlay
 ARG TARGETARCH
+ENV TARGETARCH=${TARGETARCH}
 RUN --mount=type=bind,source=docker/install_s6_overlay.sh,target=/deps/install_s6_overlay.sh \
     /deps/install_s6_overlay.sh
 
@@ -103,6 +113,7 @@ RUN --mount=type=bind,source=docker/install_s6_overlay.sh,target=/deps/install_s
 FROM base AS wheels
 ARG DEBIAN_FRONTEND
 ARG TARGETARCH
+ARG PYTHON_VERSION
 
 # Use a separate container to build wheels to prevent build dependencies in final image
 RUN apt-get -qq update \
@@ -114,7 +125,7 @@ RUN apt-get -qq update \
     && echo "deb http://raspbian.raspberrypi.org/raspbian/ bullseye main contrib non-free rpi" | tee /etc/apt/sources.list.d/raspi.list \
     && apt-get -qq update \
     && apt-get -qq install -y \
-    python3-dev \
+    python${PYTHON_VERSION}-dev \
     wget \
     # opencv dependencies
     build-essential cmake git pkg-config libgtk-3-dev \
@@ -159,6 +170,7 @@ COPY docker/rootfs/ /
 # Frigate deps (ffmpeg, python, nginx, go2rtc, s6-overlay, etc)
 FROM slim-base AS deps
 ARG TARGETARCH
+ARG PYTHON_VERSION
 
 ARG DEBIAN_FRONTEND
 # http://stackoverflow.com/questions/48162574/ddg#49462622
@@ -172,7 +184,7 @@ ENV PATH="/usr/lib/btbn-ffmpeg/bin:/usr/local/go2rtc/bin:/usr/local/nginx/sbin:$
 
 # Install dependencies
 RUN apt-get -qq update \
-    && apt install -y --no-install-recommends --no-install-suggests wget python3 python3-distutils \
+    && apt install -y --no-install-recommends --no-install-suggests wget python${PYTHON_VERSION} python3-distutils \
     && wget https://bootstrap.pypa.io/get-pip.py \
     && python3 get-pip.py \
     && rm -rf /var/lib/apt/lists/*
