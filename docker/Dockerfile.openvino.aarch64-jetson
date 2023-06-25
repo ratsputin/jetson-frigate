@@ -1,6 +1,12 @@
 # Copyright (C) 2020-2022 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-FROM balenalib/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS base
+
+ARG OPENVINO_FORK="openvinotoolkit"
+ARG OPENVINO_BRANCH=2022.2.0
+ARG TENSORFLOW_AARCH64_BRANCH=2.8.4
+ARG OMZ_BRANCH
+
+FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS base
 
 LABEL description="This is the dev image for Intel(R) Distribution of OpenVINO(TM) toolkit on Ubuntu 20.04 LTS"
 LABEL vendor="Intel Corporation"
@@ -23,11 +29,12 @@ WORKDIR /tmp
 RUN wget https://bootstrap.pypa.io/get-pip.py; \
     python3 get-pip.py
 
-ARG OPENVINO_FORK="openvinotoolkit"
-ARG OPENVINO_BRANCH="2022.2.0"
+ARG OPENVINO_FORK
+ARG OPENVINO_BRANCH
 ARG OMZ_BRANCH
 
 # hadolint ignore=DL3003
+WORKDIR /opt/intel/repo/openvino
 RUN git-lfs install; \
     git clone https://github.com/${OPENVINO_FORK}/openvino.git \
     --recurse-submodules --shallow-submodules --depth 1 -b ${OPENVINO_BRANCH} /opt/intel/repo/openvino; \
@@ -95,6 +102,8 @@ RUN curl -L https://github.com/libusb/libusb/archive/v1.0.22.zip --output v1.0.2
 
 # -------------------------------------------------------------------------------------------------
 FROM build_openvino AS build_openvino_phase2
+
+ARG OPENVINO_BRANCH
 
 RUN apt-get update; \
     DEBIAN_FRONTEND=noninteractive \
@@ -167,13 +176,12 @@ RUN git clone https://github.com/LLNL/zfp.git; \
 # Build the wheels needed for openvino_dev on the aarch64 platform for tne next step
 #
 WORKDIR /opt/intel/repo/openvino/build/install
-RUN pip3 wheel --no-cache-dir --wheel-dir=/tmp 'openvino_dev[caffe,kaldi,onnx,pytorch]==2022.2.0' --find-links=tools/; \
-    cp /tmp/imagecodecs* /tmp/jstyleson* /tmp/parasail* /tmp/progress* tools/
+RUN pip3 wheel --no-cache-dir --wheel-dir=tools/ "openvino_dev[caffe,kaldi,onnx,pytorch]==$OPENVINO_BRANCH" --find-links=tools/
 
 WORKDIR /opt/intel/repo
 CMD ["/bin/bash"]
 # -------------------------------------------------------------------------------------------------
-FROM balenalib/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS openvino_binaries
+FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS openvino_binaries
 
 LABEL description="This is the dev image for Intel(R) Distribution of OpenVINO(TM) toolkit on Ubuntu 20.04 LTS"
 LABEL vendor="Intel Corporation"
@@ -192,6 +200,9 @@ CMD ["/bin/bash"]
 # -------------------------------------------------------------------------------------------------
 FROM openvino_binaries AS openvino_python
 
+ARG OPENVINO_BRANCH
+ARG TENSORFLOW_AARCH64_BRANCH
+
 LABEL description="This is the dev image for Intel(R) Distribution of OpenVINO(TM) toolkit on Ubuntu 20.04 LTS"
 LABEL vendor="Intel Corporation"
 
@@ -205,6 +216,7 @@ RUN apt-get update; \
         sudo \
         gdb \
         unzip \
+        libpugixml1v5 \
         tzdata; \
     rm -rf /var/lib/apt/lists/*
 
@@ -226,99 +238,24 @@ RUN ./libtool --mode=install install -c libusb/libusb-1.0.la /usr/local/lib/; \
     mkdir -p /usr/local/lib/pkgconfig; \
     install -c -m 644 libusb-1.0.pc /usr/local/lib/pkgconfig
 
+# Some releases don't have the NCS installer
+
 WORKDIR ${INTEL_OPENVINO_DIR}
-RUN chmod +x install_dependencies/install_NCS_udev_rules.sh; \
-    ./install_dependencies/install_NCS_udev_rules.sh
+RUN if [ -f install_dependencies/install_NCS_udev_rules.sh ]; then \
+        chmod +x install_dependencies/install_NCS_udev_rules.sh; \
+        ./install_dependencies/install_NCS_udev_rules.sh; \
+    fi
 
 # hadolint ignore=DL3013
 RUN pip3 install --no-cache-dir --upgrade pip; \
     pip3 install --no-cache-dir protobuf; \
     pip3 install --no-cache-dir -r python/python3.8/requirements.txt; \
     pip3 install --no-cache-dir openvino --find-links=tools/ ; \
-    pip3 install --no-cache-dir 'tensorflow-aarch64==2.8.4' ; \
+    pip3 install --no-cache-dir "tensorflow-aarch64==$TENSORFLOW_AARCH64_BRANCH" ; \
     pip3 install --no-cache-dir mxnet ; \
-    pip3 install --no-cache-dir 'openvino_dev[caffe,kaldi,onnx,pytorch]==2022.2.0' --find-links=tools/
+    pip3 install --no-cache-dir "openvino_dev[caffe,kaldi,onnx,pytorch]==$OPENVINO_BRANCH" --find-links=tools/
 #   pip install --no-cache-dir 'openvino_dev[caffe,kaldi,mxnet,onnx,pytorch,tensorflow2]' --find-links=tools/
 
 RUN printf "\nsource \${INTEL_OPENVINO_DIR}/setupvars.sh\n" >> /root/.bashrc
 
-CMD ["/bin/bash"]
-# -------------------------------------------------------------------------------------------------
-FROM openvino_python AS opencv
-
-LABEL description="This is the dev image for Intel(R) Distribution of OpenVINO(TM) toolkit on Ubuntu 20.04 LTS"
-LABEL vendor="Intel Corporation"
-
-SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
-
-# hadolint ignore=DL3008
-RUN apt-get update; \
-    apt-get install -y --no-install-recommends \
-        git \
-        libva-dev \
-        libgtk-3-dev \
-        libavcodec-dev \
-        libavformat-dev \
-        libavutil-dev \
-        libswscale-dev \
-        libavresample-dev \
-        libgstreamer1.0-dev \
-        libgstreamer-plugins-base1.0-dev \
-        libgstreamer-plugins-good1.0-dev \
-        libgstreamer-plugins-bad1.0-dev; \
-    rm -rf /var/lib/apt/lists/*
-
-ARG OPENCV_BRANCH="master"
-
-ARG BUILD_OPENCV_CONTRIB="no"
-ARG OPENCV_CONTRIB_BRANCH="master"
-
-WORKDIR /opt/intel/repo
-RUN git clone https://github.com/opencv/opencv.git --depth 1 -b ${OPENCV_BRANCH} && \
-    if [ "$BUILD_OPENCV_CONTRIB" = "yes" ]; then \
-    git clone https://github.com/opencv/opencv_contrib.git --depth 1 -b ${OPENCV_CONTRIB_BRANCH}; fi
-
-COPY opencv_cmake.txt /opt/intel/repo
-
-WORKDIR /opt/intel/repo/opencv/build
-# hadolint ignore=SC2046
-RUN . "${INTEL_OPENVINO_DIR}/setupvars.sh"; \
-    if [ "$BUILD_OPENCV_CONTRIB" = "yes" ]; then \
-      apt-get update && \
-      apt-get install -y --no-install-recommends libtesseract-dev && \
-      cmake $(cat /opt/intel/repo/opencv_cmake.txt) -D OPENCV_EXTRA_MODULES_PATH=/opt/intel/repo/opencv_contrib/modules /opt/intel/repo/opencv && \
-      rm -rf /var/lib/apt/lists/* ; \
-    else \
-      cmake $(cat /opt/intel/repo/opencv_cmake.txt) /opt/intel/repo/opencv; \
-    fi; \
-    make "-j$(nproc)"; \
-    make install
-
-WORKDIR /opt/intel/repo/opencv/build/install
-RUN mkdir "${INTEL_OPENVINO_DIR}/extras"; \
-    cp -r . "${INTEL_OPENVINO_DIR}/extras/opencv"; \
-    cp -r "${INTEL_OPENVINO_DIR}/extras/opencv/python/python3" "${INTEL_OPENVINO_DIR}/python"; \
-    rm -r "${INTEL_OPENVINO_DIR}/extras/opencv/python"; \
-    echo "export OpenCV_DIR=${INTEL_OPENVINO_DIR}/extras/opencv/cmake" | tee -a "${INTEL_OPENVINO_DIR}/extras/opencv/setupvars.sh"; \
-    echo "export LD_LIBRARY_PATH=${INTEL_OPENVINO_DIR}/extras/opencv/lib:\$LD_LIBRARY_PATH" | tee -a "${INTEL_OPENVINO_DIR}/extras/opencv/setupvars.sh"; \
-    pip3 uninstall -y opencv-python; \
-    rm -rf /opt/intel/repo/opencv/build/install
-
-WORKDIR ${INTEL_OPENVINO_DIR}
-CMD ["/bin/bash"]
-# -------------------------------------------------------------------------------------------------
-FROM opencv as openvino_repo
-
-LABEL description="This is the dev image for Intel(R) Distribution of OpenVINO(TM) toolkit on Ubuntu 20.04 LTS"
-LABEL vendor="Intel Corporation"
-
-ENV INTEL_OPENVINO_DIR="/opt/intel/openvino"
-
-COPY --from=build_openvino /opt/intel/repo /opt/intel/repo
-
-# hadolint ignore=DL3013
-RUN ln --symbolic /opt/intel/repo/openvino/thirdparty/open_model_zoo/ ${INTEL_OPENVINO_DIR}/open_model_zoo && \
-    pip3 install --no-cache-dir --no-deps open_model_zoo/demos/common/python
-
-WORKDIR ${INTEL_OPENVINO_DIR}
 CMD ["/bin/bash"]
