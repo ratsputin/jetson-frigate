@@ -3,9 +3,9 @@
 # https://askubuntu.com/questions/972516/debian-frontend-environment-variable
 ARG DEBIAN_FRONTEND=noninteractive
 
-FROM balenalib/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS base
+FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS base
 
-FROM balenalib/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-run AS slim-base
+FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-run AS slim-base
 
 FROM slim-base AS wget
 ARG DEBIAN_FRONTEND
@@ -22,7 +22,6 @@ RUN --mount=type=tmpfs,target=/tmp --mount=type=tmpfs,target=/var/cache/apt \
     --mount=type=bind,source=docker/build_nginx.sh,target=/deps/build_nginx.sh \
     /deps/build_nginx.sh
 
-# TODO: fix TARGETARCH for arm64/v8
 FROM wget AS go2rtc
 ARG TARGETARCH
 WORKDIR /rootfs/usr/local/go2rtc/bin
@@ -43,12 +42,12 @@ FROM base AS ov-converter
 ARG DEBIAN_FRONTEND
 
 # Install OpenVino Runtime and Dev library
-COPY requirements-ov.txt /requirements-ov.txt
-RUN apt-get -qq update \
-    && apt-get -qq install -y wget python3.9 python3-distutils \
-    && wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
-    && python3 get-pip.py "pip" \
-    && pip install -r /requirements-ov.txt
+COPY --from=ratsputin/frigate-openvino:2023.0.0-aarch64 /opt/intel/openvino/tools/* /tmp
+RUN cd /tmp \
+    && wget https://bootstrap.pypa.io/get-pip.py \
+    && python3 get-pip.py \
+    && pip3 install openvino-dev==2023.0.0 --find-links=./ \
+    && pip3 install tensorflow-aarch64
 
 # Get OpenVino Model
 RUN mkdir /models \
@@ -115,8 +114,7 @@ RUN apt-get -qq update \
     && echo "deb http://raspbian.raspberrypi.org/raspbian/ bullseye main contrib non-free rpi" | tee /etc/apt/sources.list.d/raspi.list \
     && apt-get -qq update \
     && apt-get -qq install -y \
-    python3.9 \
-    python3.9-dev \
+    python3-dev \
     wget \
     # opencv dependencies
     build-essential cmake git pkg-config libgtk-3-dev \
@@ -129,10 +127,8 @@ RUN apt-get -qq update \
     gcc gfortran libopenblas-dev liblapack-dev && \
     rm -rf /var/lib/apt/lists/*
 
-RUN update-alternatives --install /usr/bin/python3 python /usr/bin/python3.8 1 \
-    && update-alternatives --install /usr/bin/python3 python /usr/bin/python3.9 2 \
-    && wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
-    && python3 get-pip.py "pip"
+RUN wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
+    && python3 get-pip.py
 
 COPY requirements.txt /requirements.txt
 RUN pip3 install -r requirements.txt
@@ -175,11 +171,19 @@ ENV NVIDIA_DRIVER_CAPABILITIES="compute,video,utility"
 ENV PATH="/usr/lib/btbn-ffmpeg/bin:/usr/local/go2rtc/bin:/usr/local/nginx/sbin:${PATH}"
 
 # Install dependencies
+RUN apt-get -qq update \
+    && apt install -y --no-install-recommends --no-install-suggests wget python3 python3-distutils \
+    && wget https://bootstrap.pypa.io/get-pip.py \
+    && python3 get-pip.py \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN --mount=type=bind,source=docker/install_deps.sh,target=/deps/install_deps.sh \
     /deps/install_deps.sh
 
 RUN --mount=type=bind,from=wheels,source=/wheels,target=/deps/wheels \
     pip3 install -U /deps/wheels/*.whl
+
+COPY --from=ratsputin/ffmpeg:4.4-aarch64 /usr/local /usr/lib/btbn-ffmpeg
 
 COPY --from=deps-rootfs / /
 
@@ -229,7 +233,7 @@ CMD ["sleep", "infinity"]
 
 # Frigate web build
 
-FROM balenalib/jetson-orin-nx-xavier-nx-devkit-ubuntu-node:16.19-focal-build AS web-build
+FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu-node:16.19-focal-build AS web-build
 
 WORKDIR /work
 COPY web/package.json web/package-lock.json ./
@@ -258,7 +262,7 @@ COPY --from=rootfs / /
 FROM frigate AS frigate-jetson-tensorrt
 RUN --mount=type=bind,from=trt-wheels,source=/trt-wheels,target=/deps/trt-wheels \
     pip3 install -U /deps/trt-wheels/*.whl && \
-    ln -s libnvrtc.so.11.2 /usr/local/lib/python3.9/dist-packages/nvidia/cuda_nvrtc/lib/libnvrtc.so && \
+#    ln -s libnvrtc.so.11.2 /usr/local/lib/python3.8/dist-packages/nvidia/cuda_nvrtc/lib/libnvrtc.so && \
     ldconfig
 
 # Dev Container w/ TRT

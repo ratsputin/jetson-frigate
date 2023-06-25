@@ -1,29 +1,35 @@
-default_target: jetson_frigate
+default_target: local
 
 COMMIT_HASH := $(shell git log -1 --pretty=format:"%h"|tail -1)
-
-version:
-	echo "VERSION='0.8.4-$(COMMIT_HASH)'" > frigate/version.py
-
-jetson_ffmpeg:
-	docker build --platform linux/arm64/v8 --tag blakeblackshear/frigate-ffmpeg:1.0.0-aarch64 --file docker/Dockerfile.ffmpeg.aarch64-jetson .
-
+VERSION = 0.12.1
+CURRENT_UID := $(shell id -u)
+CURRENT_GID := $(shell id -g)
 OPENVINO_BRANCH := 2023.0.0
 TENSORFLOW_BRANCH := 2.12.0
 
+version:
+	echo 'VERSION = "$(VERSION)-$(COMMIT_HASH)"' > frigate/version.py
+
+local: version jetson_ffmpeg jetson_openvino
+	docker buildx build --target=frigate-jetson-tensorrt --tag frigate-jetson-tensorrt:latest --load .
+
+jetson_ffmpeg:
+	docker build --platform linux/arm64/v8 --tag blakeblackshear/frigate-ffmpeg:1.0.0-aarch64 --file ./jetson-frigate/docker/Dockerfile.ffmpeg.aarch64-jetson .
+
 jetson_openvino:
-	docker build --tag ratsputin/frigate-openvino:$(OPENVINO_BRANCH)-aarch64 --build-arg OPENVINO_BRANCH=$(OPENVINO_BRANCH) --build-arg TENSORFLOW_AARCH64_BRANCH=$(TENSORFLOW_BRANCH) --file docker/Dockerfile.openvino.aarch64-jetson .
+	docker build --tag ratsputin/frigate-openvino:$(OPENVINO_BRANCH)-aarch64 --build-arg OPENVINO_BRANCH=$(OPENVINO_BRANCH) --build-arg TENSORFLOW_AARCH64_BRANCH=$(TENSORFLOW_BRANCH) --file ./jetson-frigate/docker/Dockerfile.openvino.aarch64-jetson .
 
-jetson_frigate: version web
-	docker build --tag frigate-base --build-arg ARCH=aarch64 --build-arg FFMPEG_VERSION=1.0 --build-arg WHEELS_VERSION=1.0.3 --file docker/Dockerfile.base .
-	docker build --tag frigate --file docker/Dockerfile.aarch64 .
+build: version jetson_ffmpeg jetson_openvino
+	docker buildx build --platform linux/arm64/v8 --target=frigate-jetson-tensorrt --tag ratsputin/frigate-jetson-tensorrt:$(VERSION)-$(COMMIT_HASH) .
 
-jetson_wheels:
-	docker build --tag blakeblackshear/frigate-wheels:1.0.3-aarch64 --file docker/Dockerfile.wheels.aarch64-jetson .
+push: build
+	docker buildx build --push --platform linux/arm64/v8 --target=frigate-jetson-tensorrt --tag $(IMAGE_REPO):${GITHUB_REF_NAME}-$(COMMIT_HASH)-tensorrt .
 
-clean:
-	docker container prune
-	docker image prune -a
-	docker volume prune
+run: local
+	docker run --gpus=all --rm --publish=5000:5000 --volume=${PWD}/config/config.yml:/config/config.yml frigate-jetson-tensorrt:latest
 
-.PHONY: web
+run_tests: local
+	docker run --gpus=all --rm --workdir=/opt/frigate --entrypoint= frigate-jetson-tensorrt:latest python3 -u -m unittest
+	docker run --gpus=all --rm --workdir=/opt/frigate --entrypoint= frigate-jetson-tensorrt:latest python3 -u -m mypy --config-file frigate/mypy.ini frigate
+
+.PHONY: run_tests
