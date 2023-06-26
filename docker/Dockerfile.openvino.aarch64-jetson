@@ -77,6 +77,8 @@ CMD ["/bin/bash"]
 # -------------------------------------------------------------------------------------------------
 FROM openvino-preliminary AS build_openvino
 
+ARG PYTHON_VERSION
+
 LABEL description="This is the dev image for Intel(R) Distribution of OpenVINO(TM) toolkit on Ubuntu 20.04 LTS"
 LABEL vendor="Intel Corporation"
 
@@ -90,7 +92,27 @@ RUN apt-get update; \
     apt-get install -y --no-install-recommends \
         libaec-dev \
         libtool \
+        python${PYTHON_VERSION}-dev \
         unzip
+# Install HWLOC for OneTBB support
+WORKDIR /tmp
+RUN wget https://download.open-mpi.org/release/hwloc/v2.9/hwloc-2.9.1.tar.gz; \
+    tar xvzf hwloc-2.9.1.tar.gz; \
+    cd hwloc-2.9.1; \
+    ./configure; \
+    make "-j$(nproc)"; \
+    make install; \
+    cd /tmp && rm -Rf hwloc-2.9.1
+
+# Install OneTBB from sources as required
+WORKDIR /tmp
+RUN git clone https://github.com/oneapi-src/oneTBB.git; \
+    cd oneTBB; \
+    mkdir build && cd build; \
+    cmake -DTBB_TEST=OFF ..; \
+    cmake --build .; \
+    cmake --install .; \
+    cd /tmp && rm -Rf oneTBB
 
 WORKDIR /opt/intel/repo/openvino/build
 # hadolint ignore=SC2046
@@ -190,6 +212,13 @@ WORKDIR /opt/intel/repo
 CMD ["/bin/bash"]
 # -------------------------------------------------------------------------------------------------
 FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS openvino_binaries
+
+ARG PYTHON_VERSION
+
+# Set up proper Python version using Ubuntu update-alternatives.  Default auto is Python 3.8.
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 20 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 10 \
+    && update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION}
 
 LABEL description="This is the dev image for Intel(R) Distribution of OpenVINO(TM) toolkit on Ubuntu 20.04 LTS"
 LABEL vendor="Intel Corporation"

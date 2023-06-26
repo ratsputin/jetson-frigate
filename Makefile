@@ -6,7 +6,7 @@ CURRENT_UID := $(shell id -u)
 CURRENT_GID := $(shell id -g)
 OPENVINO_BRANCH := 2023.0.0
 TENSORFLOW_BRANCH := 2.12.0
-PYTHON_VERSION := 3.8
+PYTHON_VERSION := 3.9
 
 version:
 	echo 'VERSION = "$(VERSION)-$(COMMIT_HASH)"' > frigate/version.py
