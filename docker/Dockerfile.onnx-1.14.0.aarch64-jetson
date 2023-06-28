@@ -1,0 +1,52 @@
+#
+# Build ONNX v1.14.0 from sources to support Jetson and CUDA 11.4
+#
+# From: https://github.com/onnx/onnx/tree/v1.14.0
+#
+FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS onnx
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Deal with Ubuntu stupidity
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 10 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 20
+
+# Install required libraries
+RUN apt-get update && apt-get install -y software-properties-common
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    build-essential \
+    python3.9-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PIP3
+RUN cd /tmp \
+    && wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
+    && python3 get-pip.py \
+    && rm -f get-pip.py
+
+# Install Cmake
+RUN cd /tmp \
+    && wget https://github.com/Kitware/CMake/releases/download/v3.21.4/cmake-3.21.4-linux-aarch64.sh \
+    && chmod +x cmake-3.21.4-linux-aarch64.sh \
+    && ./cmake-3.21.4-linux-aarch64.sh --prefix=/usr/local --exclude-subdir --skip-license \
+    && rm ./cmake-3.21.4-linux-aarch64.sh
+
+# Build ONNX
+RUN cd /tmp \
+    && git clone https://github.com/onnx/onnx.git \
+    && cd onnx \
+    && git submodule update --init --recursive \
+    && export CMAKE_ARGS=-DONNX_USE_PROTOBUF_SHARED_LIBS=ON \
+    && pip3 install -e . \
+    && cd /tmp && rm -Rf onnx
+
+# Extract the wheels
+RUN cd /tmp \
+    && pip3 wheel --wheel-dir=/tmp onnx
+
+#
+# Build a clean image with just the wheel in it for frigate
+#
+FROM scratch AS wheel
+COPY --from=onnx /tmp/*.whl /

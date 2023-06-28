@@ -2,16 +2,17 @@
 
 # https://askubuntu.com/questions/972516/debian-frontend-environment-variable
 ARG DEBIAN_FRONTEND=noninteractive
-ARG PYTHON_VERSION=3.8
+ARG OPENVINO_BRANCH=2023.0.0
+ARG PYTHON_VERSION=3.9
 
 FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS base
 
 ARG PYTHON_VERSION
 
-# Set up proper Python version using Ubuntu update-alternatives.  Default auto is Python 3.8.
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 20 \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 10 \
-    && update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION}
+# Set up proper Python version using Ubuntu update-alternatives.  Default auto is Python 3.9.
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 10 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 20 \
+    && update-alternatives --set python3 "/usr/bin/python$PYTHON_VERSION"
 
 FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-run AS slim-base
 
@@ -48,13 +49,14 @@ RUN wget -qO go2rtc "https://github.com/AlexxIT/go2rtc/releases/download/v1.5.0/
 # Download and Convert OpenVino model
 FROM base AS ov-converter
 ARG DEBIAN_FRONTEND
+ARG OPENVINO_BRANCH
 
 # Install OpenVino Runtime and Dev library
 COPY --from=ratsputin/frigate-openvino:2023.0.0-aarch64 /opt/intel/openvino/tools/* /tmp
 RUN cd /tmp \
     && wget https://bootstrap.pypa.io/get-pip.py \
     && python3 get-pip.py \
-    && pip3 install openvino-dev==2023.0.0 --find-links=./ \
+    && pip3 install openvino-dev==${OPENVINO_BRANCH} --find-links=/tmp \
     && pip3 install tensorflow-aarch64 \
     && pip3 install fastjsonschema
 
@@ -125,7 +127,7 @@ RUN apt-get -qq update \
     && echo "deb http://raspbian.raspberrypi.org/raspbian/ bullseye main contrib non-free rpi" | tee /etc/apt/sources.list.d/raspi.list \
     && apt-get -qq update \
     && apt-get -qq install -y \
-    python${PYTHON_VERSION}-dev \
+    "python$PYTHON_VERSION-dev" \
     wget \
     # opencv dependencies
     build-essential cmake git pkg-config libgtk-3-dev \
@@ -152,10 +154,13 @@ FROM wheels as trt-wheels
 ARG DEBIAN_FRONTEND
 ARG TARGETARCH
 
+# Pick up tensorrt-8.6.1-cp39-none-linux_x86_64.whl from separately build image
+RUN mkdir -p /trt-wheels
+COPY --from=ratsputin/tensorrt-wheel:8.6.1-aarch64 /*.whl /trt-wheels
+
 # Add TensorRT wheels to another folder
 COPY requirements-jetson-tensorrt.txt /requirements-jetson-tensorrt.txt
-RUN mkdir -p /trt-wheels && pip3 wheel --wheel-dir=/trt-wheels -r requirements-jetson-tensorrt.txt
-
+RUN pip3 wheel --wheel-dir=/trt-wheels -r requirements-jetson-tensorrt.txt
 
 # Collect deps in a single layer
 FROM scratch AS deps-rootfs
@@ -184,15 +189,25 @@ ENV PATH="/usr/lib/btbn-ffmpeg/bin:/usr/local/go2rtc/bin:/usr/local/nginx/sbin:$
 
 # Install dependencies
 RUN apt-get -qq update \
-    && apt install -y --no-install-recommends --no-install-suggests wget python${PYTHON_VERSION} python3-distutils \
-    && wget https://bootstrap.pypa.io/get-pip.py \
-    && python3 get-pip.py \
+    && apt install -y --no-install-recommends --no-install-suggests \
+    wget \
+    "python$PYTHON_VERSION" \
+    python3-distutils \
     && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 10 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 20 \
+    && update-alternatives --set python3 "/usr/bin/python$PYTHON_VERSION"
+
+RUN wget https://bootstrap.pypa.io/get-pip.py \
+    && python3 get-pip.py
 
 RUN --mount=type=bind,source=docker/install_deps.sh,target=/deps/install_deps.sh \
     /deps/install_deps.sh
 
 RUN --mount=type=bind,from=wheels,source=/wheels,target=/deps/wheels \
+    python3 --version; \
+    pip3 --version; \
     pip3 install -U /deps/wheels/*.whl
 
 COPY --from=ratsputin/ffmpeg:4.4-aarch64 /usr/local /usr/lib/btbn-ffmpeg
@@ -272,13 +287,43 @@ COPY --from=rootfs / /
 
 # Frigate w/ TensorRT Support as separate image
 FROM frigate AS frigate-jetson-tensorrt
+
 RUN --mount=type=bind,from=trt-wheels,source=/trt-wheels,target=/deps/trt-wheels \
-    pip3 install -U /deps/trt-wheels/*.whl && \
-#    ln -s libnvrtc.so.11.2 /usr/local/lib/python3.8/dist-packages/nvidia/cuda_nvrtc/lib/libnvrtc.so && \
-    ldconfig
+    pip3 install -U /deps/trt-wheels/*.whl \
+    && echo /usr/lib/btbn-ffmpeg/lib > /etc/ld.so.conf.d/ffmpeg.conf \
+    && ldconfig
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    libnvinfer8 \
+    libnvonnxparsers8 \
+    libnvparsers8 \
+    libnvinfer-plugin8 \
+    libcudla-11-4 \
+    cuda-cudart-11-4 \
+# FFMPEG dependencies \
+    libgomp1 \
+    libegl1 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Dev Container w/ TRT
 FROM devcontainer AS devcontainer-jetson-trt
 
 RUN --mount=type=bind,from=trt-wheels,source=/trt-wheels,target=/deps/trt-wheels \
-    pip3 install -U /deps/trt-wheels/*.whl
+    pip3 install -U /deps/trt-wheels/*.whl \
+    && echo /usr/lib/btbn-ffmpeg/lib > /etc/ld.so.conf.d/ffmpeg.conf \
+    && ldconfig
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    libnvinfer8 \
+    libnvonnxparsers8 \
+    libnvparsers8 \
+    libnvinfer-plugin8 \
+    libcudla-11-4 \
+    cuda-cudart-11-4 \
+# FFMPEG dependencies \
+    libgomp1 \
+    libegl1 \
+    && rm -rf /var/lib/apt/lists/*
+

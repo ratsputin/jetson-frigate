@@ -1,0 +1,113 @@
+#
+# Build TensorRT and the TensorRT Python bindings
+# Include onnx for tensorrt_models script
+#
+# From https://github.com/NVIDIA/TensorRT/tree/release/8.6/python
+#
+FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS tensorrt
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Deal with Ubuntu stupidity
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 10 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 20
+
+# Update CUDA signing key
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/sbsa/3bf863cc.pub
+
+# Install required libraries
+RUN apt-get update && apt-get install -y software-properties-common
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcurl4-openssl-dev \
+    wget \
+    git \
+    pkg-config \
+    sudo \
+    ssh \
+    libssl-dev \
+    pbzip2 \
+    pv \
+    bzip2 \
+    unzip \
+    devscripts \
+    lintian \
+    fakeroot \
+    dh-make \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PIP3
+RUN cd /tmp \
+    && wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
+    && python3 get-pip.py \
+    && rm -f get-pip.py
+
+# Install Cmake
+RUN cd /tmp \
+    && wget https://github.com/Kitware/CMake/releases/download/v3.21.4/cmake-3.21.4-linux-aarch64.sh \
+    && chmod +x cmake-3.21.4-linux-aarch64.sh \
+    && ./cmake-3.21.4-linux-aarch64.sh --prefix=/usr/local --exclude-subdir --skip-license \
+    && rm ./cmake-3.21.4-linux-aarch64.sh
+
+# Set environment and working directory
+ENV TRT_LIBPATH /usr/lib/aarch64-linux-gnu/
+ENV TRT_OSSPATH /root/TensorRT
+ENV CUDA_HOME /usr/local/cuda
+ENV EXT_PATH /root/external
+
+# Get TensorRT sources
+RUN cd /root/ \
+    && git clone -b main https://github.com/nvidia/TensorRT TensorRT \
+    && cd TensorRT \
+    && git submodule update --init --recursive
+
+# Build it
+WORKDIR /root/TensorRT/build
+RUN export PATH="${PATH}:/usr/local/bin/ngc-cli:$CUDA_HOME/bin" \
+    && export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${TRT_OSSPATH}/build/out:${TRT_LIBPATH}:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64" \
+    && cmake .. -DTRT_LIB_DIR=$TRT_LIBPATH -DTRT_OUT_DIR=`pwd`/out -DTRT_PLATFORM_ID=aarch64 -DCUDA_VERSION=11.4 \
+    && CC=/usr/bin/gcc make -j$(nproc)
+
+#
+# Now that TensorRT has been built, build the Python bindings
+#
+FROM tensorrt as tensorrt-python
+
+# Gather dependencies (from https://github.com/NVIDIA/TensorRT/tree/release/8.6/python)
+WORKDIR /root/external
+RUN git clone https://github.com/pybind/pybind11.git
+
+# Python 3.9.5 headers
+RUN cd /tmp \
+    && wget https://www.python.org/ftp/python/3.9.5/Python-3.9.5.tgz \
+    && tar -xf Python-3.9.5.tgz \
+    && mkdir -p $EXT_PATH/python3.9 \
+    && cp -r Python-3.9.5/Include/ $EXT_PATH/python3.9/include \
+    && cd /tmp && rm -Rf Python-3.9.5 Python-3.9.5.tgz
+
+# Python 3.9 pyconfig.h
+WORKDIR /tmp/libpython
+RUN wget http://ftp.de.debian.org/debian/pool/main/p/python3.9/libpython3.9-dev_3.9.2-1_arm64.deb \
+    && ar x libpython3.9-dev_3.9.2-1_arm64.deb \
+    && tar xvf data.tar.xz \
+    && cp usr/include/aarch64-linux-gnu/python3.9/pyconfig.h $EXT_PATH/python3.9/include/ \
+    && cd /tmp && rm -Rf libpython
+
+# Build it
+WORKDIR /root/TensorRT/python
+RUN bash -c "TENSORRT_MODULE=tensorrt PYTHON_MAJOR_VERSION=3 PYTHON_MINOR_VERSION=9 TARGET_ARCHITECTURE=aarch64 ./build.sh"
+
+# Install it
+RUN pip3 install build/bindings_wheel/dist/tensorrt-8.6.1-cp39-none-linux_aarch64.whl
+
+# Pull the onnx and protobuf wheels from the onnx image and install them for use with tensorrt_models.sh
+COPY --from=ratsputin/onnx-wheel:1.14.0-aarch64 /*.whl /tmp
+RUN pip3 install /tmp/*.whl \
+    && rm /tmp/*.whl
+
+#
+# Build a clean image with just the tensorrt wheel in it for frigate
+#
+FROM scratch AS wheel
+COPY --from=tensorrt-python /root/TensorRT/python/build/bindings_wheel/dist/tensorrt-8.6.1-cp39-none-linux_aarch64.whl /
+

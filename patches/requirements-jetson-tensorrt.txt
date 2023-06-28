@@ -1,5 +1,5 @@
 # NVidia TensorRT Support
 nvidia-pyindex
-# nvidia-tensorrt == 8.4.1.5 -- Included in nvidia-tensorrt APT package
+nvidia-tensorrt==8.6.1
 cuda-python
 cython
