@@ -7,6 +7,7 @@ CURRENT_GID := $(shell id -g)
 OPENVINO_BRANCH = 2023.0.0
 TENSORFLOW_BRANCH = 2.12.0
 PYTHON_VERSION = 3.9
+FFMPEG_VERSION = 6.0
 
 version:
 	echo 'VERSION = "$(VERSION)-$(COMMIT_HASH)"' > frigate/version.py
@@ -23,8 +24,8 @@ jetson_tensorrt: ./jetson-frigate/docker/Dockerfile.tensorrt-8.6.1.aarch64-jetso
 jetson_trt_wheel: ./jetson-frigate/docker/Dockerfile.tensorrt-8.6.1.aarch64-jetson jetson_tensorrt
 	docker buildx build --platform linux/arm64/v8 --tag ratsputin/tensorrt-wheel:8.6.1-aarch64 --file ./jetson-frigate/docker/Dockerfile.tensorrt-8.6.1.aarch64-jetson .
 
-jetson_ffmpeg: ./jetson-frigate/docker/Dockerfile.ffmpeg.aarch64-jetson
-	docker buildx build --platform linux/arm64/v8 --tag ratsputin/ffmpeg:4.4-aarch64 --file ./jetson-frigate/docker/Dockerfile.ffmpeg.aarch64-jetson .
+jetson_ffmpeg: ./jetson-frigate/docker/Dockerfile.ffmpeg-$(FFMPEG_VERSION).aarch64-jetson
+	docker buildx build --platform linux/arm64/v8 --tag ratsputin/ffmpeg:$(FFMPEG_VERSION)-aarch64 --file ./jetson-frigate/docker/Dockerfile.ffmpeg-$(FFMPEG_VERSION).aarch64-jetson .
 
 jetson_openvino: ./jetson-frigate/docker/Dockerfile.openvino.aarch64-jetson
 	docker buildx build --tag ratsputin/frigate-openvino:$(OPENVINO_BRANCH)-aarch64 --build-arg OPENVINO_BRANCH=$(OPENVINO_BRANCH) --build-arg TENSORFLOW_AARCH64_BRANCH=$(TENSORFLOW_BRANCH) --build-arg PYTHON_VERSION=$(PYTHON_VERSION) --file ./jetson-frigate/docker/Dockerfile.openvino.aarch64-jetson .

@@ -4,7 +4,9 @@
 ARG DEBIAN_FRONTEND=noninteractive
 ARG OPENVINO_BRANCH=2023.0.0
 ARG PYTHON_VERSION=3.9
+ARG FFMPEG_VERSION=6.0
 
+FROM ratsputin/ffmpeg:${FFMPEG_VERSION}-aarch64 AS ffmpeg
 FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS base
 
 ARG PYTHON_VERSION
@@ -193,6 +195,7 @@ RUN apt-get -qq update \
     wget \
     "python$PYTHON_VERSION" \
     python3-distutils \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 10 \
@@ -210,7 +213,7 @@ RUN --mount=type=bind,from=wheels,source=/wheels,target=/deps/wheels \
     pip3 --version; \
     pip3 install -U /deps/wheels/*.whl
 
-COPY --from=ratsputin/ffmpeg:4.4-aarch64 /usr/local /usr/lib/btbn-ffmpeg
+COPY --from=ffmpeg /usr/local /usr/lib/btbn-ffmpeg
 
 COPY --from=deps-rootfs / /
 
@@ -291,6 +294,7 @@ FROM frigate AS frigate-jetson-tensorrt
 RUN --mount=type=bind,from=trt-wheels,source=/trt-wheels,target=/deps/trt-wheels \
     pip3 install -U /deps/trt-wheels/*.whl \
     && echo /usr/lib/btbn-ffmpeg/lib > /etc/ld.so.conf.d/ffmpeg.conf \
+    && echo /usr/lib/aarch64-linux-gnu/tegra >> /etc/ld.so.conf.d/ffmpeg.conf \
     && ldconfig
 
 RUN apt-get update \
@@ -312,6 +316,7 @@ FROM devcontainer AS devcontainer-jetson-trt
 RUN --mount=type=bind,from=trt-wheels,source=/trt-wheels,target=/deps/trt-wheels \
     pip3 install -U /deps/trt-wheels/*.whl \
     && echo /usr/lib/btbn-ffmpeg/lib > /etc/ld.so.conf.d/ffmpeg.conf \
+    && echo /usr/lib/aarch64-linux-gnu/tegra >> /etc/ld.so.conf.d/ffmpeg.conf \
     && ldconfig
 
 RUN apt-get update \
