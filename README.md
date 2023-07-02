@@ -29,7 +29,7 @@ sudo systemctl restart docker
 ## Download frigate
 
 ```
-git clone https://github.com/blakeblackshear/frigate.git
+git clone https://github.com/blakeblackshear/frigate.git -b v0.12.1 --depth=1
 cd frigate
 ```
 
