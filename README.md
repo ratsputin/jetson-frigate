@@ -87,6 +87,12 @@ services:
       - "8555:8555/tcp"
       - "8555:8555/udp"
 ```
+## Making sure NVMPI is used
+Adding the following to your config.yml file will tell Frigate to use the appropriate switches on ffmpeg to take advantage of the Jetson's capabilities
+```
+ffmpeg:
+  hwaccel_args: -hwaccel_output_format yuv420p -c:v h264_nvmpi
+```
 
 ## TODO
 * Explain how to build TRT model files using patches/tensorrt_models.sh
