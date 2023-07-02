@@ -9,6 +9,11 @@ TENSORFLOW_BRANCH = 2.12.0
 PYTHON_VERSION = 3.9
 FFMPEG_VERSION = 6.0
 
+patch:
+	echo "Patching Frigate for NVIDIA Jetson support"
+	cp Makefile patches/docker-compose.yml patches/Dockerfile patches/requirements-jetson-tensorrt.txt patches/requirements-wheels.txt ../
+	cp patches/docker/install_deps.sh ../docker/
+
 version:
 	echo 'VERSION = "$(VERSION)-$(COMMIT_HASH)"' > frigate/version.py
 
