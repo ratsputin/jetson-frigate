@@ -50,26 +50,44 @@ make local
 ```
 **Note**: a complete build takes close to three hours and significant resources as far as disk space, CPU and memory.  This has only been tested on a 16GB Jetson Orin NX with a 1TB M.2 SSD.
 
-Once the build completes, you will have a **frigate-jetson-tensorrt:latest** docker image.
+Once the build completes, you will have a `frigate-jetson-tensorrt:latest` docker image.
 
 ## Running
+I suggest creating a docker compose file similar to the one below.  Note, in the below example, configuration files and such are stored in /srv/frigate.  It will be necessary to create the appropriate configuration file and directory structure as explained in the Frigate documentation.
+
+Additionally, in order for object detection to work, the models will need to be created using the steps described in the Frigate documentation covering the [topic](https://docs.frigate.video/configuration/detectors/#nvidia-tensorrt-detector), but using the provided `patches/tensorrt_models.sh` and the generated docker image `ratsputin/tensorrt:8.6.1-CUDA-11.4-aarch64` instead of `nvcr.io/nvidia/tensorrt:22.07-py3` in the commands provided in the documentation.
 ```
-docker run -d \
- --runtime nvidia \
- --gpus all \
- --name frigate \
- --restart unless-stopped \
- --privileged \
- --shm-size=1024m \
- -p 5000:5000 \
- -v /path/to/config:/config:ro \
- -v /etc/localtime:/etc/localtime:ro \
- -v /media/storage:/media/frigate \
- --device /dev/bus/usb:/dev/bus/usb \
- -e FRIGATE_RTSP_PASSWORD='pass' \
- frigate-jetson-tensorrt:latest
+version: "3.9"
+services:
+  frigate:
+    container_name: frigate
+    privileged: true
+    restart: unless-stopped
+    image: frigate-jetson-tensorrt:latest
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
+    shm_size: "512mb"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /srv/frigate/config:/config
+      - /srv/frigate/storage:/media/frigate
+      - /srv/frigate/trt-models:/trt-models
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1g
+    ports:
+      - "5000:5000"
+      - "8554:8554"
+      - "8555:8555/tcp"
+      - "8555:8555/udp"
 ```
 
 ## TODO
-
+* Explain how to build TRT model files using patches/tensorrt_models.sh
 * Track support for nvmpi fix preventing go2rtc restreaming from working (https://github.com/jocover/jetson-ffmpeg/issues/113)
