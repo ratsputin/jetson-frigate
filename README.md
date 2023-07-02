@@ -1,6 +1,8 @@
 # jetson-frigate
 [Frigate](https://github.com/blakeblackshear/frigate) on [Jetson Nano](https://developer.nvidia.com/embedded/jetson-nano-developer-kit) with ffmpeg 6.0 NVMPI patches for encoding/decoding hardware acceleration, docker build files and many more.
 
+The current version does not support go2rtc nor coral acceleration.  The former due to a bug in the nvmpi support that precludes ffmpeg from decoding some RTSP streams.  The latter as it's unnecessary due to TensorRT being leveraged for object detection.
+
 # Install
 
 ## Enable nvidia container runtime by default
@@ -46,8 +48,9 @@ make patch
 cd ..
 make local
 ```
+**Note**: a complete build takes close to three hours and significant resources as far as disk space, CPU and memory.  This has only been tested on a 16GB Jetson Orin NX with a 1TB M.2 SSD.
 
-After quite a while you will have **frigate-jetson-tensorrt:latest** docker image.
+Once the build completes, you will have a **frigate-jetson-tensorrt:latest** docker image.
 
 ## Running
 ```
@@ -64,7 +67,7 @@ docker run -d \
  -v /media/storage:/media/frigate \
  --device /dev/bus/usb:/dev/bus/usb \
  -e FRIGATE_RTSP_PASSWORD='pass' \
- frigate:latest
+ frigate-jetson-tensorrt:latest
 ```
 
 ## TODO
