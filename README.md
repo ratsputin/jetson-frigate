@@ -1,5 +1,5 @@
 # jetson-frigate
-[Frigate](https://github.com/blakeblackshear/frigate) on [Jetson Nano](https://developer.nvidia.com/embedded/jetson-nano-developer-kit) with ffmpeg 4.1.3 NVMPI patches for encoding/decoding hardware acceleration, docker build files and many more.
+[Frigate](https://github.com/blakeblackshear/frigate) on [Jetson Nano](https://developer.nvidia.com/embedded/jetson-nano-developer-kit) with ffmpeg 6.0 NVMPI patches for encoding/decoding hardware acceleration, docker build files and many more.
 
 # Install
 
@@ -26,10 +26,6 @@ Restart docker daemon:
 ```
 sudo systemctl restart docker
 ```
-Build your image (now GPU available during build):
-```
-docker build -t my_image_name:latest .
-```
 ## Download frigate
 
 ```
@@ -37,28 +33,21 @@ git clone https://github.com/blakeblackshear/frigate.git
 cd frigate
 ```
 
-## Download docker build files and replace them
+## Download docker build files and patch Frigate
 
 ```
 git clone https://github.com/ratsputin/jetson-frigate.git
-rm -rf docker Makefile
-mv jetson-frigate/docker .
-mv jetson-frigate/Makefile .
+cd jetson-frigate
+make patch
 ```
 
 ## Build ffmpeg and frigate
-
-First you need to build ffmpeg with jetson nano support patches
 ```
-make jetson_ffmpeg
-```
-
-Now you can build frigate itself
-```
-make jetson_frigate
+cd ..
+make local
 ```
 
-After that you will have **frigate:latest** docker image.
+After quite a while you will have **frigate-jetson-tensorrt:latest** docker image.
 
 ## Running
 ```
@@ -80,4 +69,4 @@ docker run -d \
 
 ## TODO
 
-* Backport support for  [yuvj420p](https://github.com/jocover/jetson-ffmpeg/commit/20067187641389ba309bd3ca51933718b6b475ef)
+* Track support for nvmpi fix preventing go2rtc restreaming from working
