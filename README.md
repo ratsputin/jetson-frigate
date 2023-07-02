@@ -52,6 +52,29 @@ make local
 
 Once the build completes, you will have a `frigate-jetson-tensorrt:latest` docker image.
 
+## Docker images
+Once the build is complete, you should end up with the following images.  Note the size of the images.  This does not represent the total amount of space necessary to build this container, as intermediate images and caching consume considerable space as well.
+```
+REPOSITORY                                              TAG                       IMAGE ID       CREATED        SIZE
+frigate-jetson-tensorrt                                 latest                    ************   26 hours ago   7.34GB
+ratsputin/frigate-openvino                              2023.0.0-aarch64          ************   26 hours ago   15.4GB
+ratsputin/ffmpeg                                        6.0-aarch64               ************   27 hours ago   4.42GB
+ratsputin/tensorrt-wheel                                8.6.1-aarch64             ************   28 hours ago   940kB
+ratsputin/tensorrt                                      8.6.1-CUDA-11.4-aarch64   ************   28 hours ago   13GB
+ratsputin/onnx-wheel                                    1.14.0-aarch64            ************   28 hours ago   29.5MB
+ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu        focal-run                 ************   8 days ago     206MB
+ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu        focal-build               ************   8 days ago     11.1GB
+```
+The images serve the following purposes:
+* `frigate-jetson-tensorrt:latest` - Docker image containing the fully-built Frigate system supporting the Jetson using TensorRT
+* `ratsputin/frigate-openvino:2023.0.0-aarch64' - Intermediate image used to gather OpenVINO components and build necessary utilities
+* `ratsputin/ffmpeg:6.0-aarch64` - Intermediate image used to build a static ffmpeg binary; useful for testing ffmpeg outside of Frigate
+* `ratsputin/tensorrt-wheel:8.6.1-aarch64` - Intermediate image containing various Python 3.9 wheel files used by Frigate
+* `ratsputin/tensorrt:8.6.1-CUDA-11.4-aarch64` - Build of TensorRT on the platform necessary during the Frigate build as well as to create models
+* `ratsputin/onnx-wheel:1.14.0-aarch64` - Intermediate image containing a build of ONNX on the platform
+* `ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-run` - Custom version of the BalenaLib Ubuntu Focal distribution for the Jetson Orin - runtime only
+* `ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build` - Custom version of the BalenaLib Ubuntu Focal distribution for the Jetson Orin - build image
+
 ## Running
 I suggest creating a docker compose file similar to the one below.  Note, in the below example, configuration files and such are stored in /srv/frigate.  It will be necessary to create the appropriate configuration file and directory structure as explained in the Frigate documentation.
 
