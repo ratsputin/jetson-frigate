@@ -72,8 +72,8 @@ The images serve the following purposes:
 * `ratsputin/tensorrt-wheel:8.6.1-aarch64` - Intermediate image containing various Python 3.9 wheel files used by Frigate
 * `ratsputin/tensorrt:8.6.1-CUDA-11.4-aarch64` - Build of TensorRT on the platform necessary during the Frigate build as well as to create models
 * `ratsputin/onnx-wheel:1.14.0-aarch64` - Intermediate image containing a build of ONNX on the platform
-* `ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-run` - Custom version of the BalenaLib Ubuntu Focal distribution for the Jetson Orin - runtime only
-* `ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build` - Custom version of the BalenaLib Ubuntu Focal distribution for the Jetson Orin - build image
+* `ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-run` - Custom version of the BalenaLib Ubuntu Focal distribution for the Jetson Orin - runtime only from my [repo](https://github.com/ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu-focal)
+* `ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build` - Custom version of the BalenaLib Ubuntu Focal distribution for the Jetson Orin - build image from my [repo](https://github.com/ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu-focal)
 
 ## Running
 I suggest creating a docker compose file similar to the one below.  Note, in the below example, configuration files and such are stored in /srv/frigate.  It will be necessary to create the appropriate configuration file and directory structure as explained in the Frigate documentation.
