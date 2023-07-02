@@ -69,4 +69,4 @@ docker run -d \
 
 ## TODO
 
-* Track support for nvmpi fix preventing go2rtc restreaming from working
+* Track support for nvmpi fix preventing go2rtc restreaming from working (https://github.com/jocover/jetson-ffmpeg/issues/113)
