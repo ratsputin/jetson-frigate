@@ -1,5 +1,5 @@
 # jetson-frigate
-[Frigate](https://github.com/blakeblackshear/frigate) on [Jetson Nano](https://developer.nvidia.com/embedded/jetson-nano-developer-kit) with ffmpeg 6.0 NVMPI patches for encoding/decoding hardware acceleration, docker build files and many more.
+[Frigate](https://github.com/blakeblackshear/frigate) on [Jetson Orin NX](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) with ffmpeg 6.0 NVMPI patches for encoding/decoding hardware acceleration, docker build files and many more.
 
 The current version does not support go2rtc nor coral acceleration.  The former due to a bug in the nvmpi support that precludes ffmpeg from decoding some RTSP streams.  The latter as it's unnecessary due to TensorRT being leveraged for object detection.
 
