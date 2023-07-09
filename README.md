@@ -121,4 +121,4 @@ ffmpeg:
 * Explain how to build TRT model files using patches/tensorrt_models.sh
 * Track support for nvmpi fix preventing go2rtc restreaming from working (https://github.com/jocover/jetson-ffmpeg/issues/113)
 * Figure out how to train models to inference on Nvidia Jetson DLAs (https://medium.com/@reachmostafa.m/training-yolov4-to-inference-on-nvidia-dlas-8a493f89b091)
-* Get additional HW acceleration working in ffmpeg to possibly work around the nvmpi issue with go2rtc (vulkan, cuda, cuvid).  Lacking libnvcuvid.so.1 for cuda/cuvid.
+* Get additional HW acceleration working in ffmpeg to possibly work around the nvmpi issue with go2rtc (vulkan, cuda, cuvid).  Lacking libnvcuvid.so.1 for cuda/cuvid.  Possibly in Deepstream v6.2 (https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Quickstart.html)
