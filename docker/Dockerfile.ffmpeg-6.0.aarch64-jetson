@@ -5,19 +5,22 @@
 #
 #
 
-ARG     FFMPEG_VERSION=6.0
-ARG	PREFIX=/opt/ffmpeg
-ARG     PKG_CONFIG_PATH="/opt/ffmpeg/share/pkgconfig:/opt/ffmpeg/lib/pkgconfig:/opt/ffmpeg/lib64/pkgconfig:/opt/ffmpeg/lib/aarch64-linux-gnu/pkgconfig"
-ARG     LD_LIBRARY_PATH="/usr/local/cuda-11.4/lib64:/opt/ffmpeg/lib:/opt/ffmpeg/lib64"
+ARG  FFMPEG_VERSION=6.0
+ARG  PREFIX=/opt/ffmpeg
+ARG  PKG_CONFIG_PATH="/opt/ffmpeg/share/pkgconfig:/opt/ffmpeg/lib/pkgconfig:/opt/ffmpeg/lib64/pkgconfig:/opt/ffmpeg/lib/aarch64-linux-gnu/pkgconfig"
+ARG  LD_LIBRARY_PATH="/usr/local/cuda-11.4/lib64:/opt/ffmpeg/lib:/opt/ffmpeg/lib64:/opt/ffmpeg/lib/aarch64-linux-gnu"
 
-FROM        ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS base
-FROM        ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-run AS run
+FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build AS base
+FROM ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-run AS run
 
-WORKDIR     /tmp/workdir
+WORKDIR /tmp/workdir
 
 ENV     DEBIAN_FRONTEND=noninteractive
 RUN     apt-get -yqq update && \
-        apt-get install -yq --no-install-recommends ca-certificates expat libgomp1 && \
+        apt-get install -yq --no-install-recommends \
+        ca-certificates \
+        expat \
+        libgomp1 && \
         apt-get autoremove -y && \
         apt-get clean -y
 
@@ -61,6 +64,38 @@ ENV FFMPEG_VERSION=${FFMPEG_VERSION} \
     LIBARIBB24_VERSION=1.0.3 \
     LIBPNG_VERSION=1.6.9 \
     LIBVMAF_VERSION=2.1.1 \
+    AVISYNTHPLUS_VERSION=3.7.2 \
+    FREI0R_VERSION=2.3.0 \
+    LV2_VERSION=1.18.10 \
+    SERD_VERSION=0.30.16 \
+    SORD_VERSION=0.16.14 \
+    SRATOM_VERSION=0.6.14 \
+    LILV_VERSION=0.24.20 \
+    DAV1D_VERSION=1.2.1 \
+    DAVS2_VERSION=1.7 \
+    LIBJXL_VERSION=0.8.2 \
+    OPENH264_VERSION=2.3.1 \
+    MPG123_VERSION=1.31.3 \
+    LIBSNDFILE_VERSION=1.2.0 \
+    TDB_VERSION=1.4.8 \
+    CHECK_VERSION=0.15.2 \
+    VULKAN_VERSION=1.2.203 \
+    PULSEAUDIO_VERSION=16.1 \
+    PORTAUDIO_VERSION=19.7.0 \
+    LIBFLAC_VERSION=1.4.3 \
+    LIBOPENMPT_VERSION=0.7.2 \
+    LIBPLACEBO_VERSION=4.208.0 \
+    RAV1E_VERSION=0.6.6 \
+    LIBRIST_VERSION=0.2.7 \
+    RUBBERBAND_VERSION=3.2.1 \
+    SHADERC_VERSION=2023.3 \
+    LIBSOXR_VERSION=0.1.3 \
+    SVT_AV1_VERSION=1.6.0 \
+    LIBTWOLAME_VERSION=0.4.0 \
+    ZIMG_VERSION=3.0.5 \
+    ZVBI_VERSION=0.2.35 \
+    MBEDTLS_VERSION=3.4.0 \
+    SDL2_VERSION=2.28.1 \
     SRC=/usr/local
 
 ARG         FREETYPE_SHA256SUM="5eab795ebb23ac77001cfb68b7d4d50b5d6c7469247b0b01b2c953269f658dac freetype-2.10.4.tar.gz"
@@ -84,29 +119,86 @@ ARG         LD_LIBRARY_PATH
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-RUN      buildDeps="autoconf \
+# remove libwayland-dev to try to remove dependency.  Trying to use https://github.com/NVIDIA/libglvnd to provide libEGL.so.1.
+
+RUN      buildDeps="asciidoc \
+                    autoconf \
+                    autogen \
                     automake \
-                    cmake \
-                    curl \
-                    wget \
+                    autopoint \
+                    bison \
                     bzip2 \
-                    libexpat1-dev \
+                    clang \
+                    curl \
+                    dash \
+                    docbook-xml \
+                    docbook-xsl \
+                    doxygen \
+                    flex \
                     g++ \
+                    gawk \
                     gcc \
+                    gettext \
                     git \
                     gperf \
+                    graphviz \
+                    libssl-dev \
+                    libexpat1-dev \
                     libtool \
+                    libx11-xcb-dev \
+                    libxkbcommon-dev \
+                    libxml-parser-perl \
+                    libxrandr-dev \
+                    libxtst-dev \
                     make \
-                    meson \
                     nasm \
+                    pandoc \
                     perl \
                     pkg-config \
                     python \
-                    libssl-dev \
+                    python3-dev \
+                    python3-mako \
+                    texinfo \
+                    wget \
+                    xmlto \
+                    xsltproc \
                     yasm \
                     zlib1g-dev" && \
         apt-get -yqq update && \
         apt-get install -yq --no-install-recommends ${buildDeps}
+
+## cmake
+RUN \
+        DIR=/tmp/cmake && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/Kitware/CMake/releases/download/v3.27.0-rc4/cmake-3.27.0-rc4-linux-aarch64.sh && \
+        chmod +x ./cmake-3.27.0-rc4-linux-aarch64.sh && \
+        ./cmake-3.27.0-rc4-linux-aarch64.sh --skip-license --prefix=/usr/local && \
+        rm -rf ${DIR}
+
+## pip3
+RUN \
+        DIR=/tmp/pip3 && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        wget https://bootstrap.pypa.io/get-pip.py && \
+        python3 get-pip.py && \
+        rm -rf ${DIR}
+
+## meson, ninja
+RUN \
+        pip3 install meson ninja
+
+## rust
+RUN \
+	DIR=/tmp/rust && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+	curl --proto '=https' --tlsv1.3 https://sh.rustup.rs -sSf | sh -s -- -y && \
+	. $HOME/.cargo/env && \
+	rm -rf ${DIR}
+
 ## libvmaf https://github.com/Netflix/vmaf
 RUN \
         if which meson || false; then \
@@ -118,7 +210,7 @@ RUN \
         tar -xz --strip-components=1 -f v${LIBVMAF_VERSION}.tar.gz && \
         cd /tmp/vmaf/libvmaf && \
         meson build --buildtype release --prefix=${PREFIX} && \
-        ninja -vC build && \
+        ninja -vC build -j $(nproc) && \
         ninja -vC build install && \
         mkdir -p ${PREFIX}/share/model/ && \
         cp -r /tmp/vmaf/model/* ${PREFIX}/share/model/ && \
@@ -137,7 +229,7 @@ RUN \
         curl -sL https://sourceforge.net/projects/opencore-amr/files/opencore-amr/opencore-amr-${OPENCOREAMR_VERSION}.tar.gz/download | \
         tar -zx --strip-components=1 && \
         ./configure --prefix="${PREFIX}" --enable-shared  && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ## x264 http://www.videolan.org/developers/x264.html
@@ -148,7 +240,7 @@ RUN \
         curl -sL https://download.videolan.org/pub/videolan/x264/snapshots/x264-snapshot-${X264_VERSION}.tar.bz2 | \
         tar -jx --strip-components=1 && \
         ./configure --prefix="${PREFIX}" --enable-shared --enable-pic --disable-cli && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ### x265 http://x265.org/
@@ -174,7 +266,7 @@ RUN \
         echo ${OGG_SHA256SUM} | sha256sum --check && \
         tar -zx --strip-components=1 -f libogg-${OGG_VERSION}.tar.gz && \
         ./configure --prefix="${PREFIX}" --enable-shared  && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ### libopus https://www.opus-codec.org/
@@ -187,7 +279,7 @@ RUN \
         tar -zx --strip-components=1 -f opus-${OPUS_VERSION}.tar.gz && \
         autoreconf -fiv && \
         ./configure --prefix="${PREFIX}" --enable-shared && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ### libvorbis https://xiph.org/vorbis/
@@ -199,7 +291,7 @@ RUN \
         echo ${VORBIS_SHA256SUM} | sha256sum --check && \
         tar -zx --strip-components=1 -f libvorbis-${VORBIS_VERSION}.tar.gz && \
         ./configure --prefix="${PREFIX}" --with-ogg="${PREFIX}" --enable-shared && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ### libtheora http://www.theora.org/
@@ -212,7 +304,7 @@ RUN \
         tar -zx --strip-components=1 -f libtheora-${THEORA_VERSION}.tar.gz && \
         sed -i 's/png_\(sizeof\)/\1/g' examples/png2theora.c && \
         ./configure --prefix="${PREFIX}" --with-ogg="${PREFIX}" --build=arm --enable-shared && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ### libvpx https://www.webmproject.org/code/
@@ -224,7 +316,7 @@ RUN \
         tar -zx --strip-components=1 && \
         ./configure --prefix="${PREFIX}" --enable-vp8 --enable-vp9 --enable-vp9-highbitdepth --enable-pic --enable-shared \
         --disable-debug --disable-examples --disable-docs --disable-install-bins  && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ### libwebp https://developers.google.com/speed/webp/
@@ -235,7 +327,7 @@ RUN \
         curl -sL https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${WEBP_VERSION}.tar.gz | \
         tar -zx --strip-components=1 && \
         ./configure --prefix="${PREFIX}" --enable-shared  && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ### libmp3lame http://lame.sourceforge.net/
@@ -246,7 +338,7 @@ RUN \
         curl -sL https://sourceforge.net/projects/lame/files/lame/${LAME_VERSION}/lame-${LAME_VERSION}.tar.gz/download | \
         tar -zx --strip-components=1 && \
         ./configure --prefix="${PREFIX}" --bindir="${PREFIX}/bin" --enable-shared --enable-nasm --disable-frontend && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ### xvid https://www.xvid.com/
@@ -259,7 +351,7 @@ RUN \
         tar -zx -f xvidcore-${XVID_VERSION}.tar.gz && \
         cd xvidcore/build/generic && \
         ./configure --prefix="${PREFIX}" --bindir="${PREFIX}/bin" && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ### fdk-aac https://github.com/mstorsjo/fdk-aac
@@ -271,7 +363,7 @@ RUN \
         tar -zx --strip-components=1 && \
         autoreconf -fiv && \
         ./configure --prefix="${PREFIX}" --enable-shared --datadir="${DIR}" && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ## openjpeg https://github.com/uclouvain/openjpeg
@@ -283,7 +375,7 @@ RUN \
         tar -zx --strip-components=1 && \
         export CFLAGS="${CFLAGS} -DPNG_ARM_NEON_OPT=0" && \
         cmake -DBUILD_THIRDPARTY:BOOL=ON -DCMAKE_INSTALL_PREFIX="${PREFIX}" . && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ## freetype https://www.freetype.org/
@@ -295,7 +387,7 @@ RUN  \
         echo ${FREETYPE_SHA256SUM} | sha256sum --check && \
         tar -zx --strip-components=1 -f freetype-${FREETYPE_VERSION}.tar.gz && \
         ./configure --prefix="${PREFIX}" --disable-static --enable-shared && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ## libvstab https://github.com/georgmartius/vid.stab
@@ -307,7 +399,7 @@ RUN  \
         echo ${LIBVIDSTAB_SHA256SUM} | sha256sum --check &&  \
         tar -zx --strip-components=1 -f v${LIBVIDSTAB_VERSION}.tar.gz && \
         cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" . && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ## fridibi https://www.fribidi.org/
@@ -332,7 +424,7 @@ RUN  \
         curl -sLO https://www.freedesktop.org/software/fontconfig/release/fontconfig-${FONTCONFIG_VERSION}.tar.bz2 && \
         tar -jx --strip-components=1 -f fontconfig-${FONTCONFIG_VERSION}.tar.bz2 && \
         ./configure --prefix="${PREFIX}" --disable-static --enable-shared && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ## libass https://github.com/libass/libass
@@ -345,7 +437,7 @@ RUN  \
         tar -zx --strip-components=1 -f ${LIBASS_VERSION}.tar.gz && \
         ./autogen.sh && \
         ./configure --prefix="${PREFIX}" --disable-static --enable-shared && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 ## kvazaar https://github.com/ultravideo/kvazaar
@@ -357,20 +449,21 @@ RUN \
         tar -zx --strip-components=1 -f v${KVAZAAR_VERSION}.tar.gz && \
         ./autogen.sh && \
         ./configure --prefix="${PREFIX}" --disable-static --enable-shared && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 
+## aom
 RUN \
         DIR=/tmp/aom && \
-        git clone --branch ${AOM_VERSION} --depth 1 https://aomedia.googlesource.com/aom ${DIR} ; \
-        cd ${DIR} ; \
-        rm -rf CMakeCache.txt CMakeFiles ; \
-        mkdir -p ./aom_build ; \
-        cd ./aom_build ; \
-        cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" -DBUILD_SHARED_LIBS=1 ..; \
-        make ; \
-        make install ; \
+        git clone --branch ${AOM_VERSION} --depth 1 https://aomedia.googlesource.com/aom ${DIR} && \
+        cd ${DIR} && \
+        rm -rf CMakeCache.txt CMakeFiles && \
+        mkdir -p ./aom_build && \
+        cd ./aom_build && \
+        cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" -DBUILD_SHARED_LIBS=1 .. && \
+        make -j$(nproc) && \
+        make install && \
         rm -rf ${DIR}
 
 ## libxcb (and supporting libraries) for screen capture https://xcb.freedesktop.org/
@@ -381,10 +474,11 @@ RUN \
         curl -sLO https://www.x.org/archive//individual/util/util-macros-${XORG_MACROS_VERSION}.tar.gz && \
         tar -zx --strip-components=1 -f util-macros-${XORG_MACROS_VERSION}.tar.gz && \
         ./configure --srcdir=${DIR} --prefix="${PREFIX}" && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 
+## xproto
 RUN \
         DIR=/tmp/xproto && \
         mkdir -p ${DIR} && \
@@ -394,10 +488,11 @@ RUN \
         curl -sL 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD' -o config.guess && \
         curl -sL 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD' -o config.sub && \
         ./configure --srcdir=${DIR} --prefix="${PREFIX}" && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 
+## libXau
 RUN \
         DIR=/tmp/libXau && \
         mkdir -p ${DIR} && \
@@ -405,10 +500,11 @@ RUN \
         curl -sLO https://www.x.org/archive/individual/lib/libXau-${XAU_VERSION}.tar.gz && \
         tar -zx --strip-components=1 -f libXau-${XAU_VERSION}.tar.gz && \
         ./configure --srcdir=${DIR} --prefix="${PREFIX}" && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 
+## libpthread
 RUN \
         DIR=/tmp/libpthread-stubs && \
         mkdir -p ${DIR} && \
@@ -416,10 +512,11 @@ RUN \
         curl -sLO https://xcb.freedesktop.org/dist/libpthread-stubs-${LIBPTHREAD_STUBS_VERSION}.tar.gz && \
         tar -zx --strip-components=1 -f libpthread-stubs-${LIBPTHREAD_STUBS_VERSION}.tar.gz && \
         ./configure --prefix="${PREFIX}" && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 
+## libxcb-proto
 RUN \
         DIR=/tmp/libxcb-proto && \
         mkdir -p ${DIR} && \
@@ -428,10 +525,11 @@ RUN \
         tar -zx --strip-components=1 -f xcb-proto-${XCBPROTO_VERSION}.tar.gz && \
         ACLOCAL_PATH="${PREFIX}/share/aclocal" ./autogen.sh && \
         ./configure --prefix="${PREFIX}" && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 
+## libxcb
 RUN \
         DIR=/tmp/libxcb && \
         mkdir -p ${DIR} && \
@@ -440,7 +538,7 @@ RUN \
         tar -zx --strip-components=1 -f libxcb-${LIBXCB_VERSION}.tar.gz && \
         ACLOCAL_PATH="${PREFIX}/share/aclocal" ./autogen.sh && \
         ./configure --prefix="${PREFIX}" --disable-static --enable-shared && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 
@@ -452,7 +550,7 @@ RUN \
         curl -sL https://github.com/GNOME/libxml2/archive/refs/tags/v${LIBXML2_VERSION}.tar.gz | \
         tar -xz --strip-components=1 && \
         ./autogen.sh --prefix="${PREFIX}" --with-ftp=no --with-http=no --with-python=no && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 
@@ -465,7 +563,7 @@ RUN \
         echo ${LIBBLURAY_SHA256SUM} | sha256sum --check && \
         tar -jx --strip-components=1 -f libbluray-${LIBBLURAY_VERSION}.tar.bz2 && \
         ./configure --prefix="${PREFIX}" --disable-examples --disable-bdjava-jar --disable-static --enable-shared && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 
@@ -479,7 +577,7 @@ RUN \
         tar -xz --strip-components=1 -f v${LIBZMQ_VERSION}.tar.gz && \
         ./autogen.sh && \
         ./configure --prefix="${PREFIX}" && \
-        make && \
+        make -j$(nproc) && \
         make check && \
         make install && \
         rm -rf ${DIR}
@@ -492,7 +590,7 @@ RUN \
         curl -sLO https://github.com/Haivision/srt/archive/v${LIBSRT_VERSION}.tar.gz && \
         tar -xz --strip-components=1 -f v${LIBSRT_VERSION}.tar.gz && \
         cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" . && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 
@@ -518,7 +616,7 @@ RUN \
         tar -xz --strip-components=1 -f v${LIBARIBB24_VERSION}.tar.gz && \
         autoreconf -fiv && \
         ./configure CFLAGS="-I${PREFIX}/include -fPIC" --prefix="${PREFIX}" && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         rm -rf ${DIR}
 
@@ -532,10 +630,470 @@ RUN \
         mkdir build && \
         cd build && \
         cmake .. && \
-        make && \
+        make -j$(nproc) && \
         make install && \
         ldconfig && \
         rm -rf ${DIR}
+
+## AviSynthPlus
+RUN \
+        DIR=/tmp/AviSynthPlus && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/AviSynth/AviSynthPlus/archive/refs/tags/v${AVISYNTHPLUS_VERSION}.tar.gz && \
+        tar -xz --strip-components=1 -f v${AVISYNTHPLUS_VERSION}.tar.gz && \
+        mkdir avisynth-build && cd avisynth-build &&\
+        cmake ../ -DHEADERS_ONLY:bool=off -DCMAKE_INSTALL_PREFIX=${PREFIX} && \
+        make VersionGen install -j $(nproc) && \
+        rm -Rf ${DIR}
+
+## frei0r
+RUN \
+        DIR=/tmp/frei0r && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/dyne/frei0r/archive/refs/tags/v${FREI0R_VERSION}.tar.gz && \
+        tar -xz --strip-components=1 -f v${FREI0R_VERSION}.tar.gz && \
+        mkdir -p build && \
+        cd build && \
+        cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" -DCMAKE_BUILD_TYPE=Release ../ && \
+        make -j$(nproc) && \
+        make install && \
+        rm -Rf ${DIR}
+
+## libgmp (requires bison, byacc, flex, texinfo)
+RUN \
+        DIR=/tmp/libgmp && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/sethtroisi/libgmp.git ${DIR} -b master --depth=1 && \
+        ./.bootstrap && \ 
+        ./configure --prefix="${PREFIX}" && \
+        make -j$(nproc) && \
+        make check && \
+        make install && \
+        rm -Rf ${DIR}
+
+## lv2
+RUN \
+        DIR=/tmp/lv2 && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/lv2/lv2/archive/refs/tags/v${LV2_VERSION}.tar.gz && \
+        tar -xz --strip-components=1 -f v${LV2_VERSION}.tar.gz && \
+        meson setup build && \
+        cd build && \
+        meson configure -Dprefix=${PREFIX} && \
+        meson compile && \
+        meson install && \
+        rm -Rf ${DIR}
+
+## serd-0
+RUN \
+        DIR=/tmp/serd && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/drobilla/serd/archive/refs/tags/v${SERD_VERSION}.tar.gz && \
+        tar -xz --strip-components=1 -f v${SERD_VERSION}.tar.gz && \
+        meson setup build && \
+        cd build && \
+        meson configure -Dprefix=${PREFIX} && \
+        meson compile && \
+        meson install && \
+        rm -Rf ${DIR}
+
+## sord-0
+RUN \
+        DIR=/tmp/sord && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/drobilla/sord/archive/refs/tags/v${SORD_VERSION}.tar.gz && \
+        tar -xz --strip-components=1 -f v${SORD_VERSION}.tar.gz && \
+        meson setup build && \
+        cd build && \
+        meson configure -Dprefix=${PREFIX} && \
+        meson compile && \
+        meson install && \
+        rm -Rf ${DIR}
+
+## sratom-0
+RUN \
+        DIR=/tmp/sratom && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/lv2/sratom/archive/refs/tags/v${SRATOM_VERSION}.tar.gz && \
+        tar -xz --strip-components=1 -f v${SRATOM_VERSION}.tar.gz && \
+        meson setup build && \
+        cd build && \
+        meson configure -Dprefix=${PREFIX} && \
+        meson compile && \
+        meson install && \
+        rm -Rf ${DIR}
+
+## lilv
+RUN \
+        DIR=/tmp/lilv && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/lv2/lilv/archive/refs/tags/v${LILV_VERSION}.tar.gz && \
+        tar -xz --strip-components=1 -f v${LILV_VERSION}.tar.gz && \
+        meson setup build && \
+        cd build && \
+        meson configure -Dprefix=${PREFIX} && \
+        meson compile && \
+        meson install && \
+        rm -Rf ${DIR}
+
+## dav1d
+RUN \
+        DIR=/tmp/dav1d && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/videolan/dav1d.git ${DIR} -b ${DAV1D_VERSION} --depth 1 && \
+        mkdir build && \
+        meson setup build -Dprefix=${PREFIX} && \
+        cd build && \
+        ninja -j $(nproc) && \
+        ninja install && \
+        rm -Rf ${DIR}
+
+## libdrm
+RUN \
+        DIR=/tmp/libdrm && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/tobiasjakobi/libdrm ${DIR} --depth 1 && \
+        mkdir build && \
+        meson setup build -Dprefix=${PREFIX} -Damdgpu=false -Dtegra=true -Dradeon=false && \
+        ninja -C build && \
+        ninja -C build install && \
+        rm -Rf ${DIR}
+
+## libgme
+RUN \
+	DIR=/tmp/libgme && \
+	mkdir -p ${DIR} && \
+	cd ${DIR} && \
+	git clone https://github.com/mcfiredrill/libgme.git ${DIR} --depth 1 && \
+	cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" . && \
+	make -j$(nproc) && \
+	make install && \
+        rm -Rf ${DIR}
+
+## libjxl
+RUN \
+        DIR=/tmp/libjxl && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+	git clone --branch v${LIBJXL_VERSION} https://github.com/libjxl/libjxl.git ${DIR} --recursive --shallow-submodules -- && \
+	mkdir build && \
+	cd build && \
+	cmake -DBUILD_SHARED_LIBS=true -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX="${PREFIX}" .. && \
+	cmake --build . -- -j$(nproc) && \
+	cmake --install . && \
+	rm -Rf ${DIR}
+
+## openh264
+RUN \
+	DIR=/tmp/openh264 && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/cisco/openh264/archive/refs/tags/v${OPENH264_VERSION}.tar.gz && \
+        tar -xz --strip-components=1 -f v${OPENH264_VERSION}.tar.gz && \
+	mkdir builddir && \
+	meson builddir --prefix=${PREFIX} && \
+	ninja -C builddir -j $(nproc) && \
+	ninja -C builddir install && \
+	rm -Rf ${DIR}
+
+## mpg123
+RUN \
+	DIR=/tmp/mpg123 && \
+	mkdir -p ${DIR} && \
+	cd ${DIR} && \
+	curl -sLO http://ftp.oregonstate.edu/.1/blfs/conglomeration/mpg123/mpg123-${MPG123_VERSION}.tar.bz2 && \
+        tar -xj --strip-components=1 -f mpg123-${MPG123_VERSION}.tar.bz2 && \
+	./configure --prefix="${PREFIX}" && \
+	make -j$(nproc) && \
+	make install && \
+        rm -Rf ${DIR}
+
+## libsndfile
+RUN \
+	DIR=/tmp/libsndfile && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+	curl -sLO https://github.com/libsndfile/libsndfile/archive/refs/tags/${LIBSNDFILE_VERSION}.tar.gz && \
+	tar -xz --strip-components=1 -f ${LIBSNDFILE_VERSION}.tar.gz && \
+	autoreconf -vif && \
+	./configure --prefix="${PREFIX}" --enable-werror && \
+	make -j$(nproc) && \
+	make install && \
+	rm -Rf ${DIR}
+
+## Samba tdb
+RUN \
+	DIR=/tmp/tdb && \
+	mkdir -p ${DIR} && \
+	cd ${DIR} && \
+	curl -sLO https://www.samba.org/ftp/tdb/tdb-${TDB_VERSION}.tar.gz && \
+	tar -xz --strip-components=1 -f tdb-${TDB_VERSION}.tar.gz && \
+	./configure --prefix="${PREFIX}" && \
+	make -j$(nproc) && \
+	make install && \
+	rm -Rf ${DIR}
+
+## check
+RUN \
+	DIR=/tmp/check && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/libcheck/check/archive/refs/tags/${CHECK_VERSION}.tar.gz && \ 
+        tar -xz --strip-components=1 -f ${CHECK_VERSION}.tar.gz && \
+	mkdir build && cd build && \
+	cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" ../ && \
+	make -j$(nproc) && \
+	make install && \
+        rm -Rf ${DIR}
+
+## vulkan - https://developer.nvidia.com/embedded/vulkan
+RUN \
+        DIR=/tmp/Vulkan-Loader && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/KhronosGroup/Vulkan-Loader.git ${DIR} -b v${VULKAN_VERSION} --depth 1 && \
+        mkdir build && cd build && \
+        python3 ../scripts/update_deps.py && \
+        cmake -DCMAKE_BUILD_TYPE=Release -DVULKAN_HEADERS_INSTALL_DIR=$(pwd)/Vulkan-Headers/build/install -DCMAKE_INSTALL_PREFIX="${PREFIX}" -DBUILD_WSI_WAYLAND_SUPPORT=off .. && \
+        make -j $(nproc) && \
+        make install && \
+        cd Vulkan-Headers/ && \
+        cmake -DCMAKE_BUILD_TYPE=Release -S . -B build / && \
+        cmake --install build --prefix "${PREFIX}" && \
+        rm -Rf ${DIR}
+
+## pulseaudio (libpulse)
+RUN \
+	DIR=/tmp/pulseaudio && \
+	mkdir -p ${DIR} && \
+	cd ${DIR} && \
+	git clone https://gitlab.freedesktop.org/pulseaudio/pulseaudio.git ${DIR} -b v${PULSEAUDIO_VERSION} --depth 1 && \
+	meson --prefix="${PREFIX}" build && \
+	ninja -C build -j $(nproc) && \
+	ninja -C build install && \
+	rm -Rf ${DIR}
+
+## portaudio and portaudiocpp
+RUN \
+        DIR=/tmp/portaudio && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/PortAudio/portaudio/archive/refs/tags/v${PORTAUDIO_VERSION}.tar.gz && \ 
+        tar -xz --strip-components=1 -f v${PORTAUDIO_VERSION}.tar.gz && \
+	./configure --prefix="${PREFIX}" && \
+	make -j$(nproc) && \
+	make install && \
+	cd ${DIR}/bindings/cpp && \
+	./configure --prefix="${PREFIX}" && \
+	make -j$(nproc) && \
+	make install && \
+        rm -Rf ${DIR}
+
+## libflac
+RUN \
+        DIR=/tmp/libflac && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/xiph/flac/archive/refs/tags/${LIBFLAC_VERSION}.tar.gz && \
+        tar -xz --strip-components=1 -f ${LIBFLAC_VERSION}.tar.gz && \
+	cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" -DBUILD_SHARED_LIBS=ON -DINSTALL_MANPAGES=OFF . && \
+	make -j$(nproc) && \
+        head -n -4 doc/cmake_install.cmake > tmp.txt && \
+        mv tmp.txt doc/cmake_install.cmake && \
+	make install && \
+        rm -Rf ${DIR}
+
+## libopenmpt
+RUN \
+	DIR=/tmp/libopenmpt && \
+	mkdir -p ${DIR} && \
+	cd ${DIR} && \
+	curl -sLO https://lib.openmpt.org/files/libopenmpt/src/libopenmpt-${LIBOPENMPT_VERSION}+release.autotools.tar.gz && \
+	tar -xz --strip-components=1 -f libopenmpt-${LIBOPENMPT_VERSION}+release.autotools.tar.gz && \
+	./configure --prefix="${PREFIX}" && \
+	make -j$(nproc) && \
+	make install && \
+	rm -Rf ${DIR}
+
+## rav1e
+RUN \
+        DIR=/tmp/rav1e && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/xiph/rav1e/archive/refs/tags/v${RAV1E_VERSION}.tar.gz && \
+	tar -xz --strip-components=1 -f v${RAV1E_VERSION}.tar.gz && \
+        . $HOME/.cargo/env && \
+	cargo build --release && \
+	cargo install cargo-c && \
+	cargo cinstall --release --prefix="${PREFIX}" && \
+        rm -Rf ${DIR}
+
+## librist
+RUN \
+        DIR=/tmp/librist && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://code.videolan.org/rist/librist.git ${DIR} -b v${LIBRIST_VERSION} --depth=1 && \
+	mkdir build && cd build && \
+	meson -Dprefix=${PREFIX} .. && \
+	ninja -j $(nproc) && \
+	ninja install && \
+	rm -Rf ${DIR}
+
+## rubberband
+RUN \
+        DIR=/tmp/rubberband && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/breakfastquay/rubberband.git ${DIR} -b v${RUBBERBAND_VERSION} --depth=1 && \
+	meson setup build -Dprefix=${PREFIX} -Dextra_lib_dirs=/opt/ffmpeg/lib/aarch64-linux-gnu/ -Dextra_include_dirs=/opt/ffmpeg/include && \
+	ninja -C build -j $(nproc) && \
+	ninja -C build install && \
+	rm -Rf ${DIR}
+
+## shaderc
+RUN \
+        DIR=/tmp/shaderc && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/google/shaderc.git ${DIR} -b v${SHADERC_VERSION} --depth=1 && \
+	./utils/git-sync-deps && \
+	mkdir build && cd build && \
+	cmake -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${PREFIX}" .. && \
+	ninja -j $(nproc) && \
+	ninja install && \
+	rm -Rf ${DIR}
+
+## libsoxr
+RUN \
+        DIR=/tmp/libsoxr && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/chirlu/soxr.git ${DIR} -b ${LIBSOXR_VERSION} --depth=1 && \
+	rm -f CMakeCache.txt && \
+	mkdir build && cd build && \
+	cmake -Wno-dev -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${PREFIX}" .. && \
+	make -j $(nproc) && \
+	make install && \
+        rm -Rf ${DIR}
+
+## SvtAv1Enc
+RUN \
+        DIR=/tmp/SVT-AV1 && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://gitlab.com/AOMediaCodec/SVT-AV1.git ${DIR} -b v${SVT_AV1_VERSION} --depth=1 && \
+	cd Build && \
+	cmake .. -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${PREFIX}" && \
+	make -j $(nproc) && \
+	make install && \
+	rm -Rf ${DIR}
+
+## libtwolame
+RUN \
+        DIR=/tmp/libtwolame && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/njh/twolame.git ${DIR} -b ${LIBTWOLAME_VERSION} --depth=1 && \
+	./autogen.sh --prefix="${PREFIX}" && \
+	make -j $(nproc) && \
+	make install && \
+        rm -Rf ${DIR}
+
+## uavs3d
+RUN \
+        DIR=/tmp/uavs3d && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/uavs3/uavs3d.git ${DIR} --depth=1 && \
+	mkdir -p build/linux && cd build/linux && \
+	cmake -DCOMPILE_10BIT=0 -DCMAKE_INSTALL_PREFIX="${PREFIX}" -DBUILD_SHARED_LIBS=true ../.. && \
+	make -j $(nproc) && \
+	make install && \
+        rm -Rf ${DIR}
+
+## zimg
+RUN \
+        DIR=/tmp/zimg && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/sekrit-twc/zimg -b release-${ZIMG_VERSION} ${DIR} --depth=1 && \
+        git submodule update --init --recursive && \
+        ./autogen.sh && \
+        ./configure --prefix="${PREFIX}" && \
+        make -j $(nproc) && \
+        make install && \
+        rm -Rf ${DIR}
+
+## zvbi
+RUN \
+        DIR=/tmp/zvbi && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/OpenDMM/zvbi.git -b v${ZVBI_VERSION} ${DIR} --depth=1 && \
+        sed -i 's/automake-1.10/automake-1.10 automake-1.16/g' m4/autogen.sh && \
+        ./autogen.sh && \
+        ./configure --prefix="${PREFIX}" && \
+        make -j $(nproc) && \
+        make install && \
+        rm -Rf ${DIR}
+
+## mbedTLS
+RUN \
+        DIR=/tmp/mbedtls && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/Mbed-TLS/mbedtls -b v${MBEDTLS_VERSION} ${DIR} --depth=1 && \
+        mkdir build && cd build && \
+        cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" -DUSE_SHARED_MBEDTLS_LIBRARY=ON .. && \
+        make -j $(nproc) && \
+        make install && \
+        rm -Rf ${DIR}
+
+## sdl2
+RUN \
+        DIR=/tmp/sdl2 && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLO https://github.com/libsdl-org/SDL/archive/refs/tags/release-${SDL2_VERSION}.tar.gz && \
+        tar -xz --strip-components=1 -f release-${SDL2_VERSION}.tar.gz && \
+        mkdir build && cd build && \
+        ../configure --prefix="${PREFIX}" && \
+        make -j $(nproc) && \
+        make install && \
+        rm -Rf ${DIR}
+
+## libplacebo
+RUN \
+        DIR=/tmp/libplacebo && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://github.com/haasn/libplacebo.git ${DIR} -b v${LIBPLACEBO_VERSION} --recursive --depth 1 && \
+        meson --buildtype release --prefix="${PREFIX}" ./build && \
+        ninja -C ./build -j $(nproc) && \
+        ninja -C ./build install && \
+        rm -Rf ${DIR}
+
+## ffnvcodec https://docs.nvidia.com/video-technologies/video-codec-sdk/11.1/ffmpeg-with-nvidia-gpu/index.html
+RUN \
+        DIR=/tmp/ffnvcodec && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git ${DIR} --depth=1 && \
+        sed -i '/PREFIX = \/usr\/local/d' Makefile && \
+        make && \
+        make install && \
+        rm -Rf ${DIR}
 
 FROM    build AS build-ffmpeg
 
@@ -559,30 +1117,46 @@ RUN  \
         wget -O ffmpeg_nvmpi.patch https://github.com/Keylost/jetson-ffmpeg/raw/master/ffmpeg_patches/ffmpeg${FFMPEG_VERSION}_nvmpi.patch && \
         git apply ffmpeg_nvmpi.patch && \
         ./configure \
-        --pkg-config-flags=--static \
-        --pkg-config=pkg-config  \
-        --enable-nonfree \
-        --enable-gpl \
-        --enable-cuda-nvcc \
-        --enable-nvmpi \
-        --disable-debug \
-        --disable-doc \
-        --disable-ffplay \
+	--disable-debug \
+        --disable-libfdk-aac \
+        --disable-schannel \
+        --enable-avisynth \
+        --enable-cuda-llvm \
+        --enable-ffnvcodec \
         --enable-fontconfig \
+        --enable-frei0r \
+        --enable-gmp \
+        --enable-gpl \
+        --enable-iconv \
         --enable-libaom \
         --enable-libaribb24 \
         --enable-libass \
         --enable-libbluray \
-        --enable-libfdk_aac \
+        --enable-libdav1d \
+        --enable-libdrm \
         --enable-libfreetype \
-        --enable-libkvazaar \
+        --enable-libfribidi \
+        --enable-libgme \
+        --enable-libjxl \
         --enable-libmp3lame \
         --enable-libopencore-amrnb \
         --enable-libopencore-amrwb \
+        --enable-libopenh264 \
         --enable-libopenjpeg \
+        --enable-libopenmpt \
         --enable-libopus \
+        --enable-libplacebo \
+        --enable-libpulse \
+        --enable-librav1e \
+        --enable-librist \
+        --enable-librubberband \
+        --enable-libshaderc \
+        --enable-libsoxr \
         --enable-libsrt \
+        --enable-libsvtav1 \
         --enable-libtheora \
+        --enable-libtwolame \
+        --enable-libuavs3d \
         --enable-libvidstab \
         --enable-libvmaf \
         --enable-libvorbis \
@@ -591,21 +1165,28 @@ RUN  \
         --enable-libx264 \
         --enable-libx265 \
         --enable-libxcb \
+        --enable-libxml2 \
         --enable-libxvid \
-        --enable-libzmq \
-        --enable-openssl \
-        --enable-postproc \
-        --enable-shared \
-        --enable-small \
+        --enable-libzimg \
+        --enable-libzvbi \
+        --enable-lv2 \
+        --enable-lzma \
+        --enable-mbedtls \
+        --enable-nvmpi \
+        --enable-sdl2 \
         --enable-version3 \
+        --enable-vulkan \
+        --enable-zlib \
+        --extra-cflags=-DLIBTWOLAME_STATIC \
+        --extra-cxxflags= \
+        --extra-ldexeflags=-pie \
+        --extra-ldflags=-pthread \
+        --extra-libs='-ldl -lgomp' \
+        --extra-version=20220731 \
+        --pkg-config-flags=--static \
+        --pkg-config=pkg-config \
         --extra-cflags="-I${PREFIX}/include" \
         --extra-ldflags="-L${PREFIX}/lib" \
-        --extra-ldflags=-pthread \
-        --extra-ldexeflags=-pie \
-        --extra-cflags=-DLIBTWOLAME_STATIC \
-        --extra-libs=-ldl \
-        --extra-libs=-lpthread \
-        --extra-libs=-lgomp \
         --prefix="${PREFIX}"
 
 RUN \
@@ -614,7 +1195,7 @@ RUN \
         make install
 
 RUN \
-        make tools/zmqsend && cp tools/zmqsend ${PREFIX}/bin/ && \
+        cd tools && gcc zmqsend.c -o ./zmqsend -I.. `pkg-config --libs --cflags libzmq libavutil` && cp zmqsend ${PREFIX}/bin/ && cd .. \
         make distclean && \
         hash -r && \
         cd tools && \
@@ -632,14 +1213,24 @@ RUN \
           sed "s:${PREFIX}:/usr/local:g" <"$pc" >/usr/local/lib/pkgconfig/"${pc##*/}"; \
         done
 
-FROM        run AS release
+## package it up
+RUN \
+	cd /usr && \
+	tar cf local.tar local/bin/ff* local/lib
 
-ENV         LD_LIBRARY_PATH=/usr/local/cuda-11.4/lib64:/usr/local/lib:/usr/local/lib64
+# FROM    run AS release
 
-CMD         ["--help"]
-ENTRYPOINT  ["ffmpeg"]
+# ENV     LD_LIBRARY_PATH=/usr/local/cuda-11.4/lib64:/usr/local/lib:/usr/local/lib64
 
-COPY --from=build-ffmpeg /usr/local /usr/local/
+# CMD         ["--help"]
+# ENTRYPOINT  ["ffmpeg"]
 
-# Let's make sure the app built correctly
-# Convenient to verify on https://hub.docker.com/r/jrottenberg/ffmpeg/builds/ console output
+## Release with just necessary binaries and no overhead as the container won't run without Jetpack
+FROM    run as release
+
+COPY    --from=build-ffmpeg /usr/local.tar /usr
+
+RUN \
+	cd /usr && \
+	tar xf local.tar && \
+	rm -f local.tar
