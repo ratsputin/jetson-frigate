@@ -120,3 +120,5 @@ ffmpeg:
 ## TODO
 * Explain how to build TRT model files using patches/tensorrt_models.sh
 * Track support for nvmpi fix preventing go2rtc restreaming from working (https://github.com/jocover/jetson-ffmpeg/issues/113)
+* Figure out how to train models to inference on Nvidia Jetson DLAs
+* Get additional HW acceleration working in ffmpeg to possibly work around the nvmpi issue with go2rtc (vulkan, cuda, cuvid)
