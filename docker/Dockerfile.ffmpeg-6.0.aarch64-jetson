@@ -145,6 +145,7 @@ RUN      buildDeps="asciidoc \
                     libssl-dev \
                     libexpat1-dev \
                     libtool \
+                    libv4l2 \
                     libx11-xcb-dev \
                     libxkbcommon-dev \
                     libxml-parser-perl \
@@ -1110,12 +1111,15 @@ RUN  \
         git clone git://source.ffmpeg.org/ffmpeg.git -b release/${FFMPEG_VERSION} --depth=1
 
 
-## Patch ffmpeg with NVIDIA nvmpi support https://github.com/Keylost/jetson-ffmpeg 
+## Patch ffmpeg with NVIDIA nvmpi support - https://github.com/Keylost/jetson-ffmpeg
+## Patch ffmpeg with NVIDIA nvv4l2dec support - http://ffmpeg.org/pipermail/ffmpeg-devel/2020-June/263746.html
 WORKDIR /tmp/ffmpeg
 RUN  \
         export PATH=/usr/local/cuda-11.4/bin${PATH:+:${PATH}} && \
-        wget -O ffmpeg_nvmpi.patch https://github.com/Keylost/jetson-ffmpeg/raw/master/ffmpeg_patches/ffmpeg${FFMPEG_VERSION}_nvmpi.patch && \
-        git apply ffmpeg_nvmpi.patch && \
+        wget -O ffmpeg-add-nvv4l2dec.patch https://raw.githubusercontent.com/ratsputin/jetson-frigate/main/patches/ffmpeg-add-nvv4l2dec.patch && \
+        git apply ffmpeg-add-nvv4l2dec.patch && \
+        wget -O ffmpeg-add-nvmpi-update-nvv4l2dec.path https://raw.githubusercontent.com/ratsputin/jetson-frigate/main/patches/ffmpeg-add-nvmpi-update-nvv4l2dec.path && \
+        git apply ffmpeg-add-nvmpi-update-nvv4l2dec.path \
         ./configure \
 	--disable-debug \
         --disable-libfdk-aac \
@@ -1157,6 +1161,7 @@ RUN  \
         --enable-libtheora \
         --enable-libtwolame \
         --enable-libuavs3d \
+        --enable-libv4l2 \
         --enable-libvidstab \
         --enable-libvmaf \
         --enable-libvorbis \
@@ -1173,6 +1178,7 @@ RUN  \
         --enable-lzma \
         --enable-mbedtls \
         --enable-nvmpi \
+        --enable-nvv4l2dec \
         --enable-sdl2 \
         --enable-version3 \
         --enable-vulkan \
@@ -1181,11 +1187,11 @@ RUN  \
         --extra-cxxflags= \
         --extra-ldexeflags=-pie \
         --extra-ldflags=-pthread \
-        --extra-libs='-ldl -lgomp' \
+        --extra-libs='-ldl -lgomp -L/usr/lib/aarch64-linux-gnu/tegra -lnvbuf_utils' \
         --extra-version=20220731 \
         --pkg-config-flags=--static \
         --pkg-config=pkg-config \
-        --extra-cflags="-I${PREFIX}/include" \
+        --extra-cflags="-I${PREFIX}/include -I/usr/src/jetson_multimedia_api/include/" \
         --extra-ldflags="-L${PREFIX}/lib" \
         --prefix="${PREFIX}"
 
