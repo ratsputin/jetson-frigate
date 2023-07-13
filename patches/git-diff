@@ -1,0 +1,1 @@
+git diff -R patched -- . ':!README.md' ':!/fftools/ffmpeg_filter.c' ':!/libavcodec/aac_ac3_parser.c' ':!/libavcodec/nvdec_mpeg*.c' ':!/libavcodec/nvenc.*' ':!/libavcodec/nvmpi_*.c' ':!/libavcodec/vdpau_mpeg*.c' > ../ffmpeg6.0_nvv4l2.patch
