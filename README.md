@@ -116,6 +116,13 @@ Adding the following to your config.yml file will tell Frigate to use the approp
 ffmpeg:
   hwaccel_args: -hwaccel_output_format yuv420p -c:v h264_nvmpi
 ```
+## Using Vulkan instead of NVMPI
+With release v0.1-alpha, Vulkan support in ffmpeg is supported.  Note that performance isn't as good and it's unclear whether full acceleration is being taken advantage of as CPU load is greater; however, it's possible it may be a workaround for the NVMPI issue with go2rtc.
+```
+ffmpeg:
+  hwaccel_args: -init_hw_device "vulkan=vk:0" -hwaccel vulkan -hwaccel_output_format yuv420p
+```
+
 
 ## TODO
 * Explain how to build TRT model files using patches/tensorrt_models.sh
