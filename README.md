@@ -1,7 +1,7 @@
 # jetson-frigate
-[Frigate](https://github.com/blakeblackshear/frigate) on [Jetson Orin NX](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) with ffmpeg 6.0 NVMPI patches for encoding/decoding hardware acceleration, docker build files and many more.
+[Frigate](https://github.com/blakeblackshear/frigate) 0.12.1-ab50d0b on [Jetson Orin NX](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) with ffmpeg 6.0 NVMPI patches for encoding/decoding hardware acceleration.  The resultant build includes images with a full-featured ffmpeg build (see Dockerfile for details), a native Jetson CUDA 11.4 version of TensorRT, and the related Python wheels to support it.  Note the OpenVINO container is built as part of the process, but only for the tools to download the models from Intel; OpenVINO is specifically for Intel processors.
 
-The current version does not support go2rtc nor coral acceleration.  The former due to a bug in the nvmpi support that precludes ffmpeg from decoding some RTSP streams.  The latter as it's unnecessary due to TensorRT being leveraged for object detection.
+The current version does not currently support coral acceleration.  This shouldn't present a problem as TensorRT is being leveraged for object detection.
 
 # Install
 
@@ -10,7 +10,7 @@ You need use nvidia-container-runtime as explained in docs: "It is also the only
 ```
 sudo apt-get install nvidia-container-runtime
 ```
-Edit/create the **/etc/docker/daemon.json** with content:
+Edit/create the `/etc/docker/daemon.json` with content:
 ```
 {
     "runtimes": {
@@ -75,10 +75,10 @@ The images serve the following purposes:
 * `ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-run` - Custom version of the BalenaLib Ubuntu Focal distribution for the Jetson Orin - runtime only from my [repo](https://github.com/ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu-focal)
 * `ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu:focal-build` - Custom version of the BalenaLib Ubuntu Focal distribution for the Jetson Orin - build image from my [repo](https://github.com/ratsputin/jetson-orin-nx-xavier-nx-devkit-ubuntu-focal)
 
-## Running
+# Running
 I suggest creating a docker compose file similar to the one below.  Note, in the below example, configuration files and such are stored in /srv/frigate.  It will be necessary to create the appropriate configuration file and directory structure as explained in the Frigate documentation.
 
-Additionally, in order for object detection to work, the models will need to be created using the steps described in the Frigate documentation covering the [topic](https://docs.frigate.video/configuration/detectors/#nvidia-tensorrt-detector), but using the provided `patches/tensorrt_models.sh` and the generated docker image `ratsputin/tensorrt:8.6.1-CUDA-11.4-aarch64` instead of `nvcr.io/nvidia/tensorrt:22.07-py3` in the commands provided in the documentation.
+Additionally, in order for object detection to work, the models will need to be created using the steps described in the Frigate documentation covering the [topic](https://docs.frigate.video/configuration/detectors/#nvidia-tensorrt-detector), but using the provided `patches/tensorrt_models.sh` and the generated docker image `ratsputin/tensorrt:8.6.1-CUDA-11.4-aarch64` instead of `nvcr.io/nvidia/tensorrt:22.07-py3` in the commands provided in the documentation.  Note that the models *must* be created using *your* GPU or an identical one to be able to be used (they're basically compiled specifically for the GPU).  This is why they cannot be packaged with the sources.
 ```
 version: "3.9"
 services:
@@ -116,16 +116,33 @@ Adding the following to your config.yml file will tell Frigate to use the approp
 ffmpeg:
   hwaccel_args: -hwaccel_output_format yuv420p -c:v h264_nvmpi
 ```
-## Using Vulkan instead of NVMPI
-With v6.0 Vulkan is supported in ffmpeg.  Note that performance isn't as good and it's unclear whether full acceleration is being taken advantage of as CPU load is greater; however, it's possible it may be a workaround for the NVMPI issue with go2rtc.
-```
-ffmpeg:
-  hwaccel_args: -init_hw_device "vulkan=vk:0" -hwaccel vulkan -hwaccel_output_format vulkan
-```
 
+# Notes
 
-## TODO
+## Go2rtc
+Go2rtc does work but it does have limitations related to the NVMPI implementation.  The native RTSP streaming is not compatible with NVMPI decoding in ffmpeg (it just hangs and streams errors in debug).  It is, however, possible to work around this by using ffmpeg for the encoding.  This has the added benefit of using NVMPI to leverage the NVENC acceleration for encoding.  To take advantage of go2rtc, use the following section (note, I use Reolink cameras, so `audio=opus` is necessary):
+```
+go2rtc:
+  ffmpeg:
+    h264: "-c:v h264_nvmpi -g 50 -profile:v high -level:v 4.1 -tune:v zerolatency -pix_fmt:v yuv420p"
+  streams:
+    front-yard:
+      - "ffmpeg:http://192.168.1.206/flv?port=1935&app=bcs&stream=channel0_main.bcs&user=admin&password=#video=h264#audio=opus"
+```
+The `h264` section is picked up straight from the go2rtc source code with the `-c:v h264_nvmpi` added.  There is, however, an issue with using profiles higher than `high`, so this was selected.
+Unfortunately, decoding more than 2-3 high-resolution cameras on top of the work necessary to decode seems to overwhelm the Jetson and sync gets lost.
+## Problems with the Jetson and GPU acceleration initializing
+Of late, I've noticed the following errors in syslog:
+```
+Jul 15 05:50:45 jetson kernel: [35639.128931] NVRM rpcRmApiControl_dce: NVRM_RPC_DCE: Failed RM ctrl call cmd:0x2080013f result 0x56:
+Jul 15 05:50:45 jetson kernel: [35639.129943] NVRM rpcRmApiControl_dce: NVRM_RPC_DCE: Failed RM ctrl call cmd:0x2080017e result 0x56:
+Jul 15 05:50:45 jetson kernel: [35639.132803] NVRM rpcRmApiControl_dce: NVRM_RPC_DCE: Failed RM ctrl call cmd:0x2080014a result 0x56:
+Jul 15 05:50:45 jetson kernel: [35639.170849] NVRM rpcRmApiControl_dce: NVRM_RPC_DCE: Failed RM ctrl call cmd:0x730190 result 0x56:
+Jul 15 05:50:45 jetson kernel: [35639.234603] NVRM gpumgrGetSomeGpu: Failed to retrieve pGpu - Too early call!.
+```
+These are frequently paired with starting a container that uses GPU acceleration or the shipped Jetson ffmpeg being invoked from the CLI and just hanging.  When I've seen these, the only recourse I've found is to reboot the Jetson, assuming they cause issues.
+# TODO
 * Explain how to build TRT model files using patches/tensorrt_models.sh
-* Track support for nvmpi fix preventing go2rtc restreaming from working (https://github.com/jocover/jetson-ffmpeg/issues/113)
+* Track support for nvmpi fix preventing go2rtc native restreaming from working (https://github.com/jocover/jetson-ffmpeg/issues/113)--this is unlikely to ever be fixed
 * Figure out how to train models to inference on Nvidia Jetson DLAs (https://medium.com/@reachmostafa.m/training-yolov4-to-inference-on-nvidia-dlas-8a493f89b091)
-* Get additional HW acceleration working in ffmpeg to possibly work around the nvmpi issue with go2rtc (vulkan, cuda, cuvid).  Lacking libnvcuvid.so.1 for cuda/cuvid.  Possibly in Deepstream v6.2 (https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Quickstart.html)
+* Look into implementing Coral acceleration to see if it frees up cycles for more go2rtc cameras
