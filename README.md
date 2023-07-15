@@ -87,9 +87,8 @@ docker run --gpus=all --rm -it -e YOLO_MODELS=yolov3-288,yolov3-416,yolov3-608,y
 In the above example, _all_ of the supported models will be created.  This is controlled through the `-e YOLO_MODELS=...` switch and is completely unnecessary and will take _several_ hours.  Not passing that swith will cause the default models to be generated as covered in the Frigate documentation.
 
 # Running
-I suggest creating a docker compose file similar to the one below.  Note, in the below example, configuration files and such are stored in /srv/frigate.  It will be necessary to create the appropriate configuration file and directory structure as explained in the Frigate documentation.
+I suggest creating a docker compose file similar to the one below.  Note, in the below example, the root directory for Frigate's files is `/srv/frigate`, and the TensorRT models generated in the last step in the previous section are stored in `/srv/frigate/trt-models`.  It will be necessary to create the appropriate configuration file and directory structure as explained in the Frigate documentation.  In this example, the `config.yml` file is stored in `/srv/frigate/config`.
 
-Additionally, in order for object detection to work, the models will need to be created using the steps described in the Frigate documentation covering the [topic](https://docs.frigate.video/configuration/detectors/#nvidia-tensorrt-detector), but using the provided `patches/tensorrt_models.sh` and the generated docker image `ratsputin/tensorrt:8.6.1-CUDA-11.4-aarch64` instead of `nvcr.io/nvidia/tensorrt:22.07-py3` in the commands provided in the documentation.  Note that the models *must* be created using *your* GPU or an identical one to be able to be used (they're basically compiled specifically for the GPU).  This is why they cannot be packaged with the sources.
 ```
 version: "3.9"
 services:
@@ -122,7 +121,7 @@ services:
       - "8555:8555/udp"
 ```
 ## Making sure NVMPI is used
-Adding the following to your config.yml file will tell Frigate to use the appropriate switches on ffmpeg to take advantage of the Jetson's capabilities
+Adding the following to your `config.yml` file will tell Frigate to use the appropriate switches on ffmpeg to take advantage of the Jetson's capabilities
 ```
 ffmpeg:
   hwaccel_args: -hwaccel_output_format yuv420p -c:v h264_nvmpi
