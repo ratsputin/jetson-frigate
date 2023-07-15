@@ -2,6 +2,10 @@
 
 set -euxo pipefail
 
+# One of the makefiles invokes python3 with 'python'
+update-alternatives --install /usr/bin/python python /usr/bin/python3.8 10
+update-alternatives --install /usr/bin/python python /usr/bin/python3.9 20
+
 export CUDA_HOME=/usr/local/cuda
 export LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64"
 export PATH="/usr/local/cuda-11.4/bin:$PATH"
