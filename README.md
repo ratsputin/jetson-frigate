@@ -116,7 +116,16 @@ Adding the following to your config.yml file will tell Frigate to use the approp
 ffmpeg:
   hwaccel_args: -hwaccel_output_format yuv420p -c:v h264_nvmpi
 ```
-
+## Generating Jetson TRT Models
+The instructions provided in the [documentation](https://docs.frigate.video/configuration/detectors/#generate-models) need to be modified slightly to work correctly on the Jetson platform.  An updated version of `tensorrt_models.sh` has been provided in the `jetson-frigate/patches` directory.  In addition to using it, the provided `ratsputin/tensorrt:8.6.1-CUDA-11.4-aarch64` docker image must be used to leverage the Jetson's GPU and generate usable models.
+To generate the models, use the following as an example.  In this case, Frigate has been extracted to `~/frigate`.  The models will be generated in `/tmp/trt-models`.
+```
+cd /tmp
+mkdir trt-models
+cp ~/frigate/jetson-frigate/patches/tensorrt_models.sh .
+docker run --gpus=all --rm -it -e YOLO_MODELS=yolov3-288,yolov3-416,yolov3-608,yolov3-spp-288,yolov3-spp-416,yolov3-spp-608,yolov3-tiny-288,yolov3-tiny-416,yolov4-288,yolov4-416,yolov4-608,yolov4-csp-256,yolov4-csp-512,yolov4-p5-448,yolov4-p5-896,yolov4-tiny-288,yolov4-tiny-416,yolov4x-mish-320,yolov4x-mish-640,yolov7-tiny-288,yolov7-tiny-416,yolov7-640,yolov7-320,yolov7x-640,yolov7x-320 -v `pwd`/trt-models:/tensorrt_models -v `pwd`/tensorrt_models.sh:/tensorrt_models.sh ratsputin/tensorrt:8.6.1-CUDA-11.4-aarch64 /tensorrt_models.sh
+```
+In the above example, _all_ of the supported models will be created.  This is controlled through the `-e YOLO_MODELS=...` switch and is completely unnecessary and will take _several_ hours.  Not passing that swith will cause the default models to be generated as covered in the Frigate documentation.
 # Notes
 
 ## Go2rtc
@@ -142,7 +151,6 @@ Jul 15 05:50:45 jetson kernel: [35639.234603] NVRM gpumgrGetSomeGpu: Failed to r
 ```
 These are frequently paired with starting a container that uses GPU acceleration or the shipped Jetson ffmpeg being invoked from the CLI and just hanging.  When I've seen these, the only recourse I've found is to reboot the Jetson, assuming they cause issues.
 # TODO
-* Explain how to build TRT model files using patches/tensorrt_models.sh
 * Track support for nvmpi fix preventing go2rtc native restreaming from working (https://github.com/jocover/jetson-ffmpeg/issues/113)--this is unlikely to ever be fixed
 * Figure out how to train models to inference on Nvidia Jetson DLAs (https://medium.com/@reachmostafa.m/training-yolov4-to-inference-on-nvidia-dlas-8a493f89b091)
 * Look into implementing Coral acceleration to see if it frees up cycles for more go2rtc cameras
